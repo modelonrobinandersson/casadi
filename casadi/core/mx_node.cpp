@@ -505,11 +505,43 @@ namespace casadi {
     return MX::create(new Rank1(shared_from_this<MX>(), alpha, x, y));
   }
 
+  MX MXNode::get_solve_triu(const MX& r, bool tr) const {
+    if (tr) {
+      return MX::create(new TriuSolve<true>(densify(r), shared_from_this<MX>()));
+    } else {
+      return MX::create(new TriuSolve<false>(densify(r), shared_from_this<MX>()));
+    }
+  }
+
+  MX MXNode::get_solve_tril(const MX& r, bool tr) const {
+    if (tr) {
+      return MX::create(new TrilSolve<true>(densify(r), shared_from_this<MX>()));
+    } else {
+      return MX::create(new TrilSolve<false>(densify(r), shared_from_this<MX>()));
+    }
+  }
+
+  MX MXNode::get_solve_triu_unity(const MX& r, bool tr) const {
+    if (tr) {
+      return MX::create(new TriuSolveUnity<true>(densify(r), shared_from_this<MX>()));
+    } else {
+      return MX::create(new TriuSolveUnity<false>(densify(r), shared_from_this<MX>()));
+    }
+  }
+
+  MX MXNode::get_solve_tril_unity(const MX& r, bool tr) const {
+    if (tr) {
+      return MX::create(new TrilSolveUnity<true>(densify(r), shared_from_this<MX>()));
+    } else {
+      return MX::create(new TrilSolveUnity<false>(densify(r), shared_from_this<MX>()));
+    }
+  }
+
   MX MXNode::get_solve(const MX& r, bool tr, const Linsol& linear_solver) const {
     if (tr) {
-      return MX::create(new Solve<true>(densify(r), shared_from_this<MX>(), linear_solver));
+      return MX::create(new LinsolCall<true>(densify(r), shared_from_this<MX>(), linear_solver));
     } else {
-      return MX::create(new Solve<false>(densify(r), shared_from_this<MX>(), linear_solver));
+      return MX::create(new LinsolCall<false>(densify(r), shared_from_this<MX>(), linear_solver));
     }
   }
 
@@ -1111,7 +1143,7 @@ namespace casadi {
     {OP_LOW, Low::deserialize},
     //{OP_MAP, Map::deserialize}, Map is a function
     {OP_MTIMES, Multiplication::deserialize},
-    {OP_SOLVE, Solve<false>::deserialize},
+    {OP_SOLVE, LinsolCall<false>::deserialize},
     {OP_TRANSPOSE, Transpose::deserialize},
     {OP_DETERMINANT, Determinant::deserialize},
     {OP_INVERSE, Inverse::deserialize},

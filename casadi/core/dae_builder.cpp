@@ -31,6 +31,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <algorithm>
 
 #include "casadi_misc.hpp"
 #include "exception.hpp"
@@ -39,7 +40,6 @@
 #include "xml_file.hpp"
 #include "external.hpp"
 
-using namespace std;
 namespace casadi {
 
   DaeBuilder::DaeBuilder() {
@@ -64,12 +64,12 @@ namespace casadi {
         const XmlNode& vnode = modvars[i];
 
         // Get the attributes
-        string name        = vnode.getAttribute("name");
+        std::string name        = vnode.getAttribute("name");
         casadi_int valueReference;
         vnode.readAttribute("valueReference", valueReference);
-        string variability = vnode.getAttribute("variability");
-        string causality   = vnode.getAttribute("causality");
-        string alias       = vnode.getAttribute("alias");
+        std::string variability = vnode.getAttribute("variability");
+        std::string causality   = vnode.getAttribute("causality");
+        std::string alias       = vnode.getAttribute("alias");
 
         // Skip to the next variable if its an alias
         if (alias == "alias" || alias == "negatedAlias")
@@ -77,7 +77,7 @@ namespace casadi {
 
         // Get the name
         const XmlNode& nn = vnode["QualifiedName"];
-        string qn = qualified_name(nn);
+        std::string qn = qualified_name(nn);
 
         // Add variable, if not already added
         if (varmap_.find(qn)==varmap_.end()) {
@@ -135,7 +135,7 @@ namespace casadi {
 
           // Variable category
           if (vnode.hasChild("VariableCategory")) {
-            string cat = vnode["VariableCategory"].getText();
+            std::string cat = vnode["VariableCategory"].getText();
             if (cat=="derivative")
               var.category = CAT_DERIVATIVE;
             else if (cat=="state")
@@ -209,8 +209,8 @@ namespace casadi {
         // Get the variable and binding expression
         Variable& var = read_variable(beq[0]);
         MX bexpr = read_expr(beq[1][0]);
-        this->d.push_back(var.v);
-        this->ddef.push_back(bexpr);
+        this->v.push_back(var.v);
+        this->vdef.push_back(bexpr);
       }
     }
 
@@ -276,7 +276,7 @@ namespace casadi {
               // Treat as an output
               add_y("mterm", v);
             }
-          } catch(exception& ex) {
+          } catch(std::exception& ex) {
             throw CasadiException(std::string("addObjectiveFunction failed: ") + ex.what());
           }
         } else if (onode.checkName("opt:IntegrandObjectiveFunction")) {
@@ -294,7 +294,7 @@ namespace casadi {
               add_q("lterm");
               add_quad("lterm_rhs", v);
             }
-          } catch(exception& ex) {
+          } catch(std::exception& ex) {
             throw CasadiException(std::string("addIntegrandObjectiveFunction failed: ")
                                   + ex.what());
           }
@@ -330,21 +330,21 @@ namespace casadi {
 
   Variable& DaeBuilder::read_variable(const XmlNode& node) {
     // Qualified name
-    string qn = qualified_name(node);
+    std::string qn = qualified_name(node);
 
     // Find and return the variable
     return variable(qn);
   }
 
   MX DaeBuilder::read_expr(const XmlNode& node) {
-    const string& fullname = node.name();
-    if (fullname.find("exp:")== string::npos) {
+    const std::string& fullname = node.name();
+    if (fullname.find("exp:")== std::string::npos) {
       casadi_error("DaeBuilder::read_expr: unknown - expression is supposed to "
                    "start with 'exp:' , got " + fullname);
     }
 
     // Chop the 'exp:'
-    string name = fullname.substr(4);
+    std::string name = fullname.substr(4);
 
     // The switch below is alphabetical, and can be thus made more efficient,
     // for example by using a switch statement of the first three letters,
@@ -431,7 +431,7 @@ namespace casadi {
     }
 
     // throw error if reached this point
-    throw CasadiException(string("DaeBuilder::read_expr: Unknown node: ") + name);
+    throw CasadiException(std::string("DaeBuilder::read_expr: Unknown node: ") + name);
 
   }
 
@@ -446,78 +446,78 @@ namespace casadi {
            << "nq = " << this->q.size() << ", "
            << "ny = " << this->y.size() << ", "
            << "np = " << this->p.size() << ", "
-           << "nd = " << this->d.size() << ", "
+           << "nv = " << this->v.size() << ", "
            << "nu = " << this->u.size();
 
     // Quick return?
     if (!more) return;
-    stream << endl;
+    stream << std::endl;
 
     // Print the functions
     if (!fun_.empty()) {
-      stream << "Functions" << endl;
+      stream << "Functions" << std::endl;
       for (const Function& f : fun_) {
-        stream << "  " << f << endl;
+        stream << "  " << f << std::endl;
       }
     }
 
     // Print the variables
-    stream << "Variables" << endl;
-    stream << "  t = " << str(this->t) << endl;
-    if (!this->s.empty()) stream << "  s = " << str(this->s) << endl;
-    if (!this->x.empty()) stream << "  x = " << str(this->x) << endl;
-    if (!this->z.empty()) stream << "  z =  " << str(this->z) << endl;
-    if (!this->q.empty()) stream << "  q =  " << str(this->q) << endl;
-    if (!this->y.empty()) stream << "  y =  " << str(this->y) << endl;
-    if (!this->p.empty()) stream << "  p =  " << str(this->p) << endl;
-    if (!this->d.empty()) stream << "  d =  " << str(this->d) << endl;
-    if (!this->u.empty()) stream << "  u =  " << str(this->u) << endl;
+    stream << "Variables" << std::endl;
+    stream << "  t = " << str(this->t) << std::endl;
+    if (!this->s.empty()) stream << "  s = " << str(this->s) << std::endl;
+    if (!this->x.empty()) stream << "  x = " << str(this->x) << std::endl;
+    if (!this->z.empty()) stream << "  z =  " << str(this->z) << std::endl;
+    if (!this->q.empty()) stream << "  q =  " << str(this->q) << std::endl;
+    if (!this->y.empty()) stream << "  y =  " << str(this->y) << std::endl;
+    if (!this->p.empty()) stream << "  p =  " << str(this->p) << std::endl;
+    if (!this->v.empty()) stream << "  d =  " << str(this->v) << std::endl;
+    if (!this->u.empty()) stream << "  u =  " << str(this->u) << std::endl;
 
-    if (!this->d.empty()) {
-      stream << "Dependent parameters" << endl;
-      for (casadi_int i=0; i<this->d.size(); ++i)
-        stream << "  " << str(this->d[i]) << " == " << str(this->ddef[i]) << endl;
+    if (!this->v.empty()) {
+      stream << "Dependent variables" << std::endl;
+      for (casadi_int i=0; i<this->v.size(); ++i)
+        stream << "  " << str(this->v[i]) << " == " << str(this->vdef[i]) << std::endl;
     }
 
     if (!this->dae.empty()) {
-      stream << "Fully-implicit differential-algebraic equations" << endl;
+      stream << "Fully-implicit differential-algebraic equations" << std::endl;
       for (casadi_int k=0; k<this->dae.size(); ++k) {
-        stream << "  0 == " << this->dae[k] << endl;
+        stream << "  0 == " << this->dae[k] << std::endl;
       }
     }
 
     if (!this->x.empty()) {
-      stream << "Differential equations" << endl;
+      stream << "Differential equations" << std::endl;
       for (casadi_int k=0; k<this->x.size(); ++k) {
-        stream << "  " << str(der(this->x[k])) << " == " << str(this->ode[k]) << endl;
+        stream << "  " << str(der(this->x[k])) << " == " << str(this->ode[k]) << std::endl;
       }
     }
 
     if (!this->alg.empty()) {
-      stream << "Algebraic equations" << endl;
+      stream << "Algebraic equations" << std::endl;
       for (casadi_int k=0; k<this->z.size(); ++k) {
-        stream << "  0 == " << str(this->alg[k]) << endl;
+        stream << "  0 == " << str(this->alg[k]) << std::endl;
       }
     }
 
     if (!this->q.empty()) {
-      stream << "Quadrature equations" << endl;
+      stream << "Quadrature equations" << std::endl;
       for (casadi_int k=0; k<this->q.size(); ++k) {
-        stream << "  " << str(der(this->q[k])) << " == " << str(this->quad[k]) << endl;
+        stream << "  " << str(der(this->q[k])) << " == " << str(this->quad[k]) << std::endl;
       }
     }
 
     if (!this->init.empty()) {
-      stream << "Initial equations" << endl;
+      stream << "Initial equations" << std::endl;
       for (casadi_int k=0; k<this->init.size(); ++k) {
-        stream << "  0 == " << str(this->init[k]) << endl;
+        stream << "  0 == " << str(this->init[k]) << std::endl;
       }
     }
 
     if (!this->y.empty()) {
-      stream << "Output variables" << endl;
+      stream << "Output variables" << std::endl;
       for (casadi_int i=0; i<this->y.size(); ++i) {
-        stream << "  " << str(this->y[i]) << " == " << str(this->ydef[i]) << endl;
+        stream << "  " << str(this->y[i]) << " == " << str(this->ydef[i]) << std::endl;
       }
     }
   }
@@ -533,7 +533,7 @@ namespace casadi {
     sanity_check();
 
     // Gather variables and expressions to replace
-    vector<MX> v_id, v_rep;
+    std::vector<MX> v_id, v_rep;
     for (VarMap::iterator it=varmap_.begin(); it!=varmap_.end(); ++it) {
       if (it->second.nominal!=1) {
         Variable& v=it->second;
@@ -554,12 +554,12 @@ namespace casadi {
     if (v_id.empty()) return;
 
     // Collect all expressions to be replaced
-    vector<MX> ex;
+    std::vector<MX> ex;
     ex.insert(ex.end(), this->ode.begin(), this->ode.end());
     ex.insert(ex.end(), this->dae.begin(), this->dae.end());
     ex.insert(ex.end(), this->alg.begin(), this->alg.end());
     ex.insert(ex.end(), this->quad.begin(), this->quad.end());
-    ex.insert(ex.end(), this->ddef.begin(), this->ddef.end());
+    ex.insert(ex.end(), this->vdef.begin(), this->vdef.end());
     ex.insert(ex.end(), this->ydef.begin(), this->ydef.end());
     ex.insert(ex.end(), this->init.begin(), this->init.end());
 
@@ -567,12 +567,12 @@ namespace casadi {
     ex = substitute(ex, v_id, v_rep);
 
     // Get the modified expressions
-    vector<MX>::const_iterator it=ex.begin();
+    std::vector<MX>::const_iterator it=ex.begin();
     for (casadi_int i=0; i<this->x.size(); ++i) this->ode[i] = *it++ / nominal(this->x[i]);
     for (casadi_int i=0; i<this->s.size(); ++i) this->dae[i] = *it++;
     for (casadi_int i=0; i<this->z.size(); ++i) this->alg[i] = *it++;
     for (casadi_int i=0; i<this->q.size(); ++i) this->quad[i] = *it++ / nominal(this->q[i]);
-    for (casadi_int i=0; i<this->d.size(); ++i) this->ddef[i] = *it++ / nominal(this->d[i]);
+    for (casadi_int i=0; i<this->v.size(); ++i) this->vdef[i] = *it++ / nominal(this->v[i]);
     for (casadi_int i=0; i<this->y.size(); ++i) this->ydef[i] = *it++ / nominal(this->y[i]);
     for (casadi_int i=0; i<this->init.size(); ++i) this->init[i] = *it++;
     casadi_assert_dev(it==ex.end());
@@ -583,56 +583,56 @@ namespace casadi {
     }
   }
 
-  void DaeBuilder::sort_d() {
+  void DaeBuilder::sort_v() {
     // Quick return if no intermediates
-    if (this->d.empty()) return;
+    if (this->v.empty()) return;
 
     // Find out which intermediates depends on which other
-    Function f("tmp", {vertcat(this->d)}, {vertcat(this->d) - vertcat(this->ddef)});
+    Function f("tmp", {vertcat(this->v)}, {vertcat(this->v) - vertcat(this->vdef)});
     Sparsity sp = f.sparsity_jac(0, 0);
     casadi_assert_dev(sp.is_square());
 
     // BLT transformation
-    vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
+    std::vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
     sp.btf(rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock);
 
     // Resort equations and variables
-    vector<MX> ddefnew(this->d.size()), dnew(this->d.size());
+    std::vector<MX> vdefnew(this->v.size()), dnew(this->v.size());
     for (casadi_int i=0; i<colperm.size(); ++i) {
       // Permute equations
-      ddefnew[i] = this->ddef[colperm[i]];
+      vdefnew[i] = this->vdef[colperm[i]];
 
       // Permute variables
-      dnew[i] = this->d[colperm[i]];
+      dnew[i] = this->v[colperm[i]];
     }
-    this->ddef = ddefnew;
-    this->d = dnew;
+    this->vdef = vdefnew;
+    this->v = dnew;
   }
 
-  void DaeBuilder::split_d() {
+  void DaeBuilder::split_v() {
     // Quick return if no intermediates
-    if (this->d.empty()) return;
+    if (this->v.empty()) return;
 
     // Begin by sorting the dependent parameters
-    sort_d();
+    sort_v();
 
     // Sort the equations by causality
-    vector<MX> ex;
-    substitute_inplace(this->d, this->ddef, ex);
+    std::vector<MX> ex;
+    substitute_inplace(this->v, this->vdef, ex);
 
     // Make sure that the interdependencies have been properly eliminated
-    casadi_assert_dev(!depends_on(vertcat(this->ddef), vertcat(this->d)));
+    casadi_assert_dev(!depends_on(vertcat(this->vdef), vertcat(this->v)));
   }
 
-  void DaeBuilder::eliminate_d() {
+  void DaeBuilder::eliminate_v() {
     // Quick return if possible
-    if (this->d.empty()) return;
+    if (this->v.empty()) return;
 
     // Begin by sorting the dependent parameters
-    sort_d();
+    sort_v();
 
     // Collect all expressions to be replaced
-    vector<MX> ex;
+    std::vector<MX> ex;
     ex.insert(ex.end(), this->ode.begin(), this->ode.end());
     ex.insert(ex.end(), this->dae.begin(), this->dae.end());
     ex.insert(ex.end(), this->alg.begin(), this->alg.end());
@@ -641,10 +641,10 @@ namespace casadi {
     ex.insert(ex.end(), this->init.begin(), this->init.end());
 
     // Substitute all at once (since they may have common subexpressions)
-    substitute_inplace(this->d, this->ddef, ex);
+    substitute_inplace(this->v, this->vdef, ex);
 
     // Get the modified expressions
-    vector<MX>::const_iterator it=ex.begin();
+    std::vector<MX>::const_iterator it=ex.begin();
     for (casadi_int i=0; i<this->x.size(); ++i) this->ode[i] = *it++;
     for (casadi_int i=0; i<this->s.size(); ++i) this->dae[i] = *it++;
     for (casadi_int i=0; i<this->z.size(); ++i) this->alg[i] = *it++;
@@ -668,11 +668,11 @@ namespace casadi {
     casadi_assert_dev(sp.is_square());
 
     // BLT transformation
-    vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
+    std::vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
     sp.btf(rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock);
 
     // Resort equations and variables
-    vector<MX> daenew(this->s.size()), snew(this->s.size()), sdotnew(this->s.size());
+    std::vector<MX> daenew(this->s.size()), snew(this->s.size()), sdotnew(this->s.size());
     for (casadi_int i=0; i<rowperm.size(); ++i) {
       // Permute equations
       daenew[i] = this->dae[rowperm[i]];
@@ -696,11 +696,11 @@ namespace casadi {
     casadi_assert_dev(sp.is_square());
 
     // BLT transformation
-    vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
+    std::vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
     sp.btf(rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock);
 
     // Resort equations and variables
-    vector<MX> algnew(this->z.size()), znew(this->z.size());
+    std::vector<MX> algnew(this->z.size()), znew(this->z.size());
     for (casadi_int i=0; i<rowperm.size(); ++i) {
       // Permute equations
       algnew[i] = this->alg[rowperm[i]];
@@ -714,7 +714,7 @@ namespace casadi {
 
   void DaeBuilder::make_semi_explicit() {
     // Only works if there are no i
-    eliminate_d();
+    eliminate_v();
 
     // Separate the algebraic variables and equations
     split_dae();
@@ -731,12 +731,12 @@ namespace casadi {
     casadi_assert_dev(sp.is_square());
 
     // BLT transformation
-    vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
+    std::vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
     casadi_int nb = sp.btf(rowperm, colperm, rowblock, colblock,
                                   coarse_rowblock, coarse_colblock);
 
     // Resort equations and variables
-    vector<MX> daenew(this->s.size()), snew(this->s.size()), sdotnew(this->s.size());
+    std::vector<MX> daenew(this->s.size()), snew(this->s.size()), sdotnew(this->s.size());
     for (casadi_int i=0; i<rowperm.size(); ++i) {
       // Permute equations
       daenew[i] = this->dae[rowperm[i]];
@@ -753,17 +753,17 @@ namespace casadi {
     MX J = jacobian(vertcat(this->dae), vertcat(this->sdot));
 
     // Explicit ODE
-    vector<MX> new_ode;
+    std::vector<MX> new_ode;
 
     // Loop over blocks
     for (casadi_int b=0; b<nb; ++b) {
 
       // Get variables in the block
-      vector<MX> xb(this->s.begin()+colblock[b], this->s.begin()+colblock[b+1]);
-      vector<MX> xdotb(this->sdot.begin()+colblock[b], this->sdot.begin()+colblock[b+1]);
+      std::vector<MX> xb(this->s.begin()+colblock[b], this->s.begin()+colblock[b+1]);
+      std::vector<MX> xdotb(this->sdot.begin()+colblock[b], this->sdot.begin()+colblock[b+1]);
 
       // Get equations in the block
-      vector<MX> fb(this->dae.begin()+rowblock[b], this->dae.begin()+rowblock[b+1]);
+      std::vector<MX> fb(this->dae.begin()+rowblock[b], this->dae.begin()+rowblock[b+1]);
 
       // Get local Jacobian
       MX Jb = J(Slice(rowblock[b], rowblock[b+1]), Slice(colblock[b], colblock[b+1])); // NOLINT
@@ -775,17 +775,17 @@ namespace casadi {
 
       // Divide fb into a part which depends on vb and a part which doesn't according to
       // "fb == mul(Jb, vb) + fb_res"
-      vector<MX> fb_res = substitute(fb, xdotb, vector<MX>(xdotb.size(), 0));
+      std::vector<MX> fb_res = substitute(fb, xdotb, std::vector<MX>(xdotb.size(), 0));
 
       // Solve for vb
-      vector<MX> fb_exp = vertsplit(solve(Jb, -vertcat(fb_res)));
+      std::vector<MX> fb_exp = vertsplit(solve(Jb, -vertcat(fb_res)));
 
       // Add to explicitly determined equations and variables
       new_ode.insert(new_ode.end(), fb_exp.begin(), fb_exp.end());
     }
 
     // Eliminate inter-dependencies
-    vector<MX> ex;
+    std::vector<MX> ex;
     substitute_inplace(this->sdot, new_ode, ex, false);
 
     // Add to explicit differential states and ODE
@@ -798,7 +798,7 @@ namespace casadi {
 
   void DaeBuilder::eliminate_alg() {
     // Only works if there are no i
-    eliminate_d();
+    eliminate_v();
 
     // Quick return if there are no algebraic states
     if (this->z.empty()) return;
@@ -812,12 +812,12 @@ namespace casadi {
     casadi_assert_dev(sp.is_square());
 
     // BLT transformation
-    vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
+    std::vector<casadi_int> rowperm, colperm, rowblock, colblock, coarse_rowblock, coarse_colblock;
     casadi_int nb = sp.btf(rowperm, colperm, rowblock, colblock,
                                   coarse_rowblock, coarse_colblock);
 
     // Resort equations and variables
-    vector<MX> algnew(this->z.size()), znew(this->z.size());
+    std::vector<MX> algnew(this->z.size()), znew(this->z.size());
     for (casadi_int i=0; i<rowperm.size(); ++i) {
       // Permute equations
       algnew[i] = this->alg[rowperm[i]];
@@ -832,19 +832,19 @@ namespace casadi {
     f = Function("f", {vertcat(this->z)}, {vertcat(this->alg)});
 
     // Variables where we have found an explicit expression and where we haven't
-    vector<MX> z_exp, z_imp;
+    std::vector<MX> z_exp, z_imp;
 
     // Explicit and implicit equations
-    vector<MX> f_exp, f_imp;
+    std::vector<MX> f_exp, f_imp;
 
     // Loop over blocks
     for (casadi_int b=0; b<nb; ++b) {
 
       // Get local variables
-      vector<MX> zb(this->z.begin()+colblock[b], this->z.begin()+colblock[b+1]);
+      std::vector<MX> zb(this->z.begin()+colblock[b], this->z.begin()+colblock[b+1]);
 
       // Get local equations
-      vector<MX> fb(this->alg.begin()+rowblock[b], this->alg.begin()+rowblock[b+1]);
+      std::vector<MX> fb(this->alg.begin()+rowblock[b], this->alg.begin()+rowblock[b+1]);
 
       // Get local Jacobian
       MX Jb = jacobian(vertcat(fb), vertcat(zb));
@@ -862,10 +862,10 @@ namespace casadi {
 
         // Divide fb into a part which depends on vb and a part which doesn't
         // according to "fb == mul(Jb, vb) + fb_res"
-        vector<MX> fb_res = substitute(fb, zb, vector<MX>(zb.size(), 0));
+        std::vector<MX> fb_res = substitute(fb, zb, std::vector<MX>(zb.size(), 0));
 
         // Solve for vb
-        vector<MX> fb_exp = vertsplit(solve(Jb, -vertcat(fb_res)));
+        std::vector<MX> fb_exp = vertsplit(solve(Jb, -vertcat(fb_res)));
 
         // Add to explicitly determined equations and variables
         z_exp.insert(z_exp.end(), zb.begin(), zb.end());
@@ -874,25 +874,25 @@ namespace casadi {
     }
 
     // Eliminate inter-dependencies in fb_exp
-    vector<MX> ex;
+    std::vector<MX> ex;
     substitute_inplace(z_exp, f_exp, ex, false);
 
     // Add to the beginning of the dependent variables
     // (since the other dependent variable might depend on them)
-    this->d.insert(this->d.begin(), z_exp.begin(), z_exp.end());
-    this->ddef.insert(this->ddef.begin(), f_exp.begin(), f_exp.end());
+    this->v.insert(this->v.begin(), z_exp.begin(), z_exp.end());
+    this->vdef.insert(this->vdef.begin(), f_exp.begin(), f_exp.end());
 
     // Save new algebraic equations
     this->z = z_imp;
     this->alg = f_imp;
 
     // Eliminate new dependent variables from the other equations
-    eliminate_d();
+    eliminate_v();
   }
 
   void DaeBuilder::make_explicit() {
     // Only works if there are no i
-    eliminate_d();
+    eliminate_v();
 
     // Start by transforming to semi-explicit form
     make_semi_explicit();
@@ -922,12 +922,13 @@ namespace casadi {
   void DaeBuilder::add_variable(const std::string& name, const Variable& var) {
     // Try to find the component
     if (varmap_.find(name)!=varmap_.end()) {
-      stringstream ss;
+      std::stringstream ss;
       casadi_error("Variable \"" + name + "\" has already been added.");
     }
-
     // Add to the map of all variables
     varmap_[name] = var;
+    // Clear cache
+    clear_cache();
   }
 
   MX DaeBuilder::add_variable(const std::string& name, casadi_int n) {
@@ -940,11 +941,44 @@ namespace casadi {
     return v.v;
   }
 
+  void DaeBuilder::add_variable(const MX& new_v, const MX& new_der_v) {
+    Variable v(new_v.name(), new_v.sparsity(), new_v, new_der_v);
+    add_variable(new_v.name(), v);
+  }
+
   MX DaeBuilder::add_x(const std::string& name, casadi_int n) {
     if (name.empty()) return add_x("x" + str(this->x.size()), n);
     MX new_x = add_variable(name, n);
     this->x.push_back(new_x);
     return new_x;
+  }
+
+  void DaeBuilder::register_x(const MX& new_x, const MX& new_der_x) {
+    add_variable(new_x, new_der_x);
+    this->x.push_back(new_x);
+  }
+
+  void DaeBuilder::register_z(const MX& new_z, const MX& new_der_z) {
+    add_variable(new_z, new_der_z);
+    this->z.push_back(new_z);
+  }
+
+  void DaeBuilder::register_v(const MX& new_v, const MX& new_vdef, const MX& new_der_v) {
+    if (new_v.sparsity() != new_vdef.sparsity())
+      casadi_error("Mismatching sparsity in DaeBuilder::register_v");
+    add_variable(new_v, new_der_v);
+    this->v.push_back(new_v);
+    this->vdef.push_back(new_vdef);
+    this->lam_vdef.push_back(MX::sym("lam_" + new_v.name(), new_v.sparsity()));
+  }
+
+  void DaeBuilder::register_y(const MX& new_y, const MX& new_ydef, const MX& new_der_y) {
+    if (new_y.sparsity() != new_ydef.sparsity())
+      casadi_error("Mismatching sparsity in DaeBuilder::register_y");
+    add_variable(new_y, new_der_y);
+    this->y.push_back(new_y);
+    this->ydef.push_back(new_ydef);
+    this->lam_ydef.push_back(MX::sym("lam_" + new_y.name(), new_y.sparsity()));
   }
 
   MX DaeBuilder::add_q(const std::string& name, casadi_int n) {
@@ -991,12 +1025,12 @@ namespace casadi {
     return new_aux;
   }
 
-  MX DaeBuilder::add_d(const std::string& name, const MX& new_ddef) {
-    MX new_d = add_variable(name, new_ddef.sparsity());
-    this->d.push_back(new_d);
-    this->ddef.push_back(new_ddef);
-    this->lam_ddef.push_back(MX::sym("lam_" + name, new_ddef.sparsity()));
-    return new_d;
+  MX DaeBuilder::add_v(const std::string& name, const MX& new_vdef) {
+    MX new_v = add_variable(name, new_vdef.sparsity());
+    this->v.push_back(new_v);
+    this->vdef.push_back(new_vdef);
+    this->lam_vdef.push_back(MX::sym("lam_" + name, new_vdef.sparsity()));
+    return new_v;
   }
 
   MX DaeBuilder::add_y(const std::string& name, const MX& new_ydef) {
@@ -1010,21 +1044,25 @@ namespace casadi {
   void DaeBuilder::add_ode(const std::string& name, const MX& new_ode) {
     this->ode.push_back(new_ode);
     this->lam_ode.push_back(MX::sym("lam_" + name, new_ode.sparsity()));
+    clear_cache();
   }
 
   void DaeBuilder::add_dae(const std::string& name, const MX& new_dae) {
     this->dae.push_back(new_dae);
     this->lam_dae.push_back(MX::sym("lam_" + name, new_dae.sparsity()));
+    clear_cache();
   }
 
   void DaeBuilder::add_alg(const std::string& name, const MX& new_alg) {
     this->alg.push_back(new_alg);
     this->lam_alg.push_back(MX::sym("lam_" + name, new_alg.sparsity()));
+    clear_cache();
   }
 
   void DaeBuilder::add_quad(const std::string& name, const MX& new_quad) {
     this->quad.push_back(new_quad);
     this->lam_quad.push_back(MX::sym("lam_" + name, new_quad.sparsity()));
+    clear_cache();
   }
 
   void DaeBuilder::sanity_check() const {
@@ -1073,12 +1111,12 @@ namespace casadi {
     }
 
     // Intermediate variables
-    casadi_assert(this->d.size()==this->ddef.size(),
-                          "d and ddef have different lengths");
-    for (casadi_int i=0; i<this->d.size(); ++i) {
-      casadi_assert(this->d[i].is_symbolic(), "Non-symbolic dependent parameter d");
-      casadi_assert(this->d[i].size()==this->ddef[i].size(),
-                            "ddef has wrong dimensions");
+    casadi_assert(this->v.size()==this->vdef.size(),
+                          "v and vdef have different lengths");
+    for (casadi_int i=0; i<this->v.size(); ++i) {
+      casadi_assert(this->v[i].is_symbolic(), "Non-symbolic dependent parameter v");
+      casadi_assert(this->v[i].size()==this->vdef[i].size(),
+                            "vdef has wrong dimensions");
     }
 
     // Output equations
@@ -1103,7 +1141,7 @@ namespace casadi {
 
   std::string DaeBuilder::qualified_name(const XmlNode& nn) {
     // Stringstream to assemble name
-    stringstream qn;
+    std::stringstream qn;
 
     for (casadi_int i=0; i<nn.size(); ++i) {
       // Add a dot
@@ -1143,7 +1181,7 @@ namespace casadi {
 
   void DaeBuilder::split_dae() {
     // Only works if there are no d
-    eliminate_d();
+    eliminate_v();
 
     // Quick return if no s
     if (this->s.empty()) return;
@@ -1156,14 +1194,14 @@ namespace casadi {
     casadi_assert_dev(f.nnz_out(0)==ns);
 
     // Input/output buffers
-    vector<bvec_t> f_sdot(ns, 1);
-    vector<bvec_t> f_dae(ns, 0);
+    std::vector<bvec_t> f_sdot(ns, 1);
+    std::vector<bvec_t> f_dae(ns, 0);
 
     // Propagate to f_dae
     f({get_ptr(f_sdot)}, {get_ptr(f_dae)});
 
     // Get the new differential and algebraic equations
-    vector<MX> new_dae, new_alg;
+    std::vector<MX> new_dae, new_alg;
     for (casadi_int i=0; i<ns; ++i) {
       if (f_dae[i]==bvec_t(1)) {
         new_dae.push_back(this->dae[i]);
@@ -1181,7 +1219,7 @@ namespace casadi {
     f.rev({get_ptr(f_sdot)}, {get_ptr(f_dae)});
 
     // Get the new algebraic variables and new states
-    vector<MX> new_s, new_sdot, new_z;
+    std::vector<MX> new_s, new_sdot, new_z;
     for (casadi_int i=0; i<ns; ++i) {
       if (f_sdot[i]==bvec_t(1)) {
         new_s.push_back(this->s[i]);
@@ -1214,7 +1252,7 @@ namespace casadi {
       return "n/a";
     } else {
       std::vector<MX> prim = var.primitives();
-      string ret = unit(prim.at(0).name());
+      std::string ret = unit(prim.at(0).name());
       for (casadi_int i=1; i<prim.size(); ++i) {
         casadi_assert(ret == unit(prim.at(i).name()),
                               "DaeBuilder::unit: Argument has mixed units");
@@ -1403,14 +1441,13 @@ namespace casadi {
     case DAE_BUILDER_T: return "t";
     case DAE_BUILDER_C: return "c";
     case DAE_BUILDER_P: return "p";
-    case DAE_BUILDER_D: return "d";
+    case DAE_BUILDER_V: return "v";
     case DAE_BUILDER_U: return "u";
     case DAE_BUILDER_X: return "x";
     case DAE_BUILDER_S: return "s";
     case DAE_BUILDER_SDOT: return "sdot";
     case DAE_BUILDER_Z: return "z";
     case DAE_BUILDER_Q: return "q";
-    case DAE_BUILDER_W: return "w";
     case DAE_BUILDER_Y: return "y";
     default: return "";
     }
@@ -1423,8 +1460,8 @@ namespace casadi {
       return DAE_BUILDER_C;
     } else if (id=="p") {
       return DAE_BUILDER_P;
-    } else if (id=="d") {
-      return DAE_BUILDER_D;
+    } else if (id=="v") {
+      return DAE_BUILDER_V;
     } else if (id=="u") {
       return DAE_BUILDER_U;
     } else if (id=="x") {
@@ -1437,8 +1474,6 @@ namespace casadi {
       return DAE_BUILDER_Z;
     } else if (id=="q") {
       return DAE_BUILDER_Q;
-    } else if (id=="w") {
-      return DAE_BUILDER_W;
     } else if (id=="y") {
       return DAE_BUILDER_Y;
     } else {
@@ -1457,8 +1492,7 @@ namespace casadi {
 
   std::string DaeBuilder::name_out(DaeBuilderOut ind) {
     switch (ind) {
-    case DAE_BUILDER_DDEF: return "ddef";
-    case DAE_BUILDER_WDEF: return "wdef";
+    case DAE_BUILDER_VDEF: return "vdef";
     case DAE_BUILDER_ODE: return "ode";
     case DAE_BUILDER_DAE: return "dae";
     case DAE_BUILDER_ALG: return "alg";
@@ -1469,10 +1503,8 @@ namespace casadi {
   }
 
   DaeBuilder::DaeBuilderOut DaeBuilder::enum_out(const std::string& id) {
-    if (id=="ddef") {
-      return DAE_BUILDER_DDEF;
-    } else if (id=="wdef") {
-      return DAE_BUILDER_WDEF;
+    if (id=="vdef") {
+      return DAE_BUILDER_VDEF;
     } else if (id=="ode") {
       return DAE_BUILDER_ODE;
     } else if (id=="dae") {
@@ -1498,7 +1530,7 @@ namespace casadi {
   }
 
   std::string DaeBuilder::name_in() {
-    stringstream ss;
+    std::stringstream ss;
     ss << "[";
     for (casadi_int i=0; i!=DAE_BUILDER_NUM_IN; ++i) {
       if (i!=0) ss << ",";
@@ -1509,7 +1541,7 @@ namespace casadi {
   }
 
   std::string DaeBuilder::name_out() {
-    stringstream ss;
+    std::stringstream ss;
     ss << "[";
     for (casadi_int i=0; i!=DAE_BUILDER_NUM_OUT; ++i) {
       if (i!=0) ss << ",";
@@ -1521,24 +1553,23 @@ namespace casadi {
 
   std::vector<MX> DaeBuilder::input(DaeBuilderIn ind) const {
     switch (ind) {
-    case DAE_BUILDER_T: return vector<MX>(1, this->t);
+    case DAE_BUILDER_T: return std::vector<MX>(1, this->t);
     case DAE_BUILDER_C: return this->c;
     case DAE_BUILDER_P: return this->p;
-    case DAE_BUILDER_D: return this->d;
+    case DAE_BUILDER_V: return this->v;
     case DAE_BUILDER_U: return this->u;
     case DAE_BUILDER_X: return this->x;
     case DAE_BUILDER_S: return this->s;
     case DAE_BUILDER_SDOT: return this->sdot;
     case DAE_BUILDER_Z: return this->z;
     case DAE_BUILDER_Q: return this->q;
-    case DAE_BUILDER_W: return this->w;
     case DAE_BUILDER_Y: return this->y;
     default: return std::vector<MX>();
     }
   }
 
-  std::vector<MX> DaeBuilder::input(std::vector<DaeBuilderIn>& ind) const {
-    vector<MX> ret(ind.size());
+  std::vector<MX> DaeBuilder::input(const std::vector<DaeBuilderIn>& ind) const {
+    std::vector<MX> ret(ind.size());
     for (casadi_int i=0; i<ind.size(); ++i) {
       ret[i] = vertcat(input(ind[i]));
     }
@@ -1547,8 +1578,7 @@ namespace casadi {
 
   std::vector<MX> DaeBuilder::output(DaeBuilderOut ind) const {
     switch (ind) {
-    case DAE_BUILDER_DDEF: return this->ddef;
-    case DAE_BUILDER_WDEF: return this->wdef;
+    case DAE_BUILDER_VDEF: return this->vdef;
     case DAE_BUILDER_ODE: return this->ode;
     case DAE_BUILDER_DAE: return this->dae;
     case DAE_BUILDER_ALG: return this->alg;
@@ -1558,46 +1588,28 @@ namespace casadi {
     }
   }
 
-  std::vector<MX> DaeBuilder::output(std::vector<DaeBuilderOut>& ind) const {
-    vector<MX> ret(ind.size());
+  std::vector<MX> DaeBuilder::output(const std::vector<DaeBuilderOut>& ind) const {
+    std::vector<MX> ret(ind.size());
     for (casadi_int i=0; i<ind.size(); ++i) {
       ret[i] = vertcat(output(ind[i]));
     }
     return ret;
   }
 
-  std::vector<MX> DaeBuilder::multiplier(DaeBuilderOut ind) const {
-    switch (ind) {
-    case DAE_BUILDER_DDEF: return this->lam_ddef;
-    case DAE_BUILDER_WDEF: return this->lam_wdef;
-    case DAE_BUILDER_ODE: return this->lam_ode;
-    case DAE_BUILDER_DAE: return this->lam_dae;
-    case DAE_BUILDER_ALG: return this->lam_alg;
-    case DAE_BUILDER_QUAD: return this->lam_quad;
-    case DAE_BUILDER_YDEF: return this->lam_ydef;
-    default: return std::vector<MX>();
-    }
-  }
-
-  MX DaeBuilder::add_lc(const std::string& name,
+  void DaeBuilder::add_lc(const std::string& name,
                         const std::vector<std::string>& f_out) {
     // Make sure object valid
     sanity_check();
 
     // Make sure name is valid
     casadi_assert(!name.empty(), "DaeBuilder::add_lc: \"name\" is empty");
-    for (string::const_iterator i=name.begin(); i!=name.end(); ++i) {
+    for (std::string::const_iterator i=name.begin(); i!=name.end(); ++i) {
       casadi_assert(isalnum(*i),
                             "DaeBuilder::add_lc: \"name\" must be alphanumeric");
     }
 
-    // Get a reference to the expression
-    MX& ret = lin_comb_[name];
-    if (!ret.is_empty()) casadi_warning("DaeBuilder::add_lc: Overwriting " << name);
-    ret = 0;
-
-    // Get indices of outputs
-    std::vector<DaeBuilderOut> f_out_enum(f_out.size());
+    // Consistency checks
+    casadi_assert(!f_out.empty(), "DaeBuilder::add_lc: Linear combination is empty");
     std::vector<bool> in_use(DAE_BUILDER_NUM_OUT, false);
     for (casadi_int i=0; i<f_out.size(); ++i) {
       DaeBuilderOut oind = enum_out(f_out[i]);
@@ -1607,341 +1619,50 @@ namespace casadi {
       casadi_assert(!in_use[oind],
         "DaeBuilder::add_lc: Duplicate expression " + f_out[i]);
       in_use[oind] = true;
-
-      // Add linear combination of expressions
-      vector<MX> res=output(oind), lam_res=multiplier(oind);
-      for (casadi_int i=0; i<res.size(); ++i) {
-        ret += dot(lam_res[i], res[i]);
-      }
     }
 
-    // Return the (cached) expression
-    return ret;
+    std::vector<std::string>& ret1 = lc_[name];
+    if (!ret1.empty()) casadi_warning("DaeBuilder::add_lc: Overwriting " << name);
+    ret1 = f_out;
   }
 
   Function DaeBuilder::create(const std::string& fname,
-                                const std::vector<std::string>& s_in,
-                                const std::vector<std::string>& s_out) const {
-    // Collect function inputs
-    vector<MX> ret_in(s_in.size());
-    std::vector<bool> input_used(DAE_BUILDER_NUM_IN, false);
-    std::vector<bool> output_used(DAE_BUILDER_NUM_IN, false);
-    for (vector<string>::const_iterator s_in_it=s_in.begin(); s_in_it!=s_in.end(); ++s_in_it) {
-      // Primal variable
-      DaeBuilderIn iind = enum_in(*s_in_it);
-      if (iind!=DAE_BUILDER_NUM_IN) {
-        casadi_assert(!input_used[iind],
-          "DaeBuilder::function: Duplicate expression " + *s_in_it);
-        input_used[iind] = true;
-        ret_in[s_in_it-s_in.begin()] = vertcat(input(iind));
-        continue;
+      const std::vector<std::string>& s_in,
+      const std::vector<std::string>& s_out, bool sx) const {
+    // Are there any '_' in the names?
+    bool with_underscore = false;
+    for (auto s_io : {&s_in, &s_out}) {
+      for (const std::string& s : *s_io) {
+        with_underscore = with_underscore || std::count(s.begin(), s.end(), '_');
       }
-
-      // Dual variable
-      if (s_in_it->size()>4 && s_in_it->substr(0, 4)=="lam_") {
-        DaeBuilderOut oind = enum_out(s_in_it->substr(4, string::npos));
-        if (oind!=DAE_BUILDER_NUM_OUT) {
-          casadi_assert(!output_used[oind],
-            "DaeBuilder::function: Duplicate expression " + *s_in_it);
-          output_used[oind] = true;
-          ret_in[s_in_it-s_in.begin()] = vertcat(multiplier(oind));
-          continue;
-        }
-      }
-
-      // Error if reached this point
-      stringstream ss;
-      ss << "DaeBuilder::function: No input expression " << *s_in_it << "." << endl;
-      ss << "Valid expressions are: [";
-      for (casadi_int i=0; i!=DAE_BUILDER_NUM_IN; ++i) {
-        if (i!=0) ss << ", ";
-        ss << name_in(static_cast<DaeBuilderIn>(i));
-      }
-      for (casadi_int i=0; i!=DAE_BUILDER_NUM_OUT; ++i) {
-        ss << ", lam_" << name_out(static_cast<DaeBuilderOut>(i));
-      }
-      ss << "]";
-      casadi_error(ss.str());
     }
-
-    // Function outputs
-    vector<MX> ret_out(s_out.size());
-    vector<bool> assigned(s_out.size(), false);
-
-    // List of valid attributes
-    enum Attributes {
-      ATTR_TRANSPOSE,
-      ATTR_TRIU,
-      ATTR_TRIL,
-      ATTR_DENSIFY};
-
-    // Separarate attributes
-    vector<vector<Attributes> > attr(s_out.size());
-    vector<string> s_out_noatt = s_out;
-    for (casadi_int i=0; i<s_out_noatt.size(); ++i) {
-      // Currently processed string
-      string& s = s_out_noatt[i];
-
-      // Loop over attributes
-      while (true) {
-        // Find the first underscore separator
-        size_t pos = s.find('_');
-        if (pos>=s.size()) break; // No more underscore
-        string a = s.substr(0, pos);
-
-        // Abort if not attribute
-        if (a=="transpose") {
-          attr[i].push_back(ATTR_TRANSPOSE);
-        } else if (a=="triu") {
-          attr[i].push_back(ATTR_TRIU);
-        } else if (a=="tril") {
-          attr[i].push_back(ATTR_TRIL);
-        } else if (a=="densify") {
-          attr[i].push_back(ATTR_DENSIFY);
-        } else {
-          // No more attribute
+    // Replace '_' with ':', if needed
+    if (with_underscore) {
+      std::vector<std::string> s_in_mod(s_in), s_out_mod(s_out);
+      for (auto s_io : {&s_in_mod, &s_out_mod}) {
+        for (std::string& s : *s_io) replace(s.begin(), s.end(), '_', ':');
+      }
+      // Recursive call
+      return create(fname, s_in_mod, s_out_mod, sx);
+    }
+    // Check if dependent variables are given and needed
+    bool elim_v;
+    if (this->v.empty()) {
+      // No dependent variables, no substitution needed
+      elim_v = false;
+    } else {
+      // Dependent variables exists, eliminate unless v is given
+      elim_v = true;
+      for (const std::string& s : s_in) {
+        if (s == "v") {
+          // Dependent variables are given
+          elim_v = false;
           break;
         }
-
-        // Strip attribute
-        s = s.substr(pos+1, string::npos);
       }
     }
-
-    // Non-differentiated outputs
-    fill(output_used.begin(), output_used.end(), false);
-    for (casadi_int i=0; i<s_out_noatt.size(); ++i) {
-      DaeBuilderOut oind = enum_out(s_out_noatt[i]);
-      if (oind!=DAE_BUILDER_NUM_OUT) {
-        casadi_assert(!output_used[oind],
-          "DaeBuilder::function: Duplicate expression " + s_out_noatt[i]);
-        output_used[oind] = true;
-        ret_out[i] = vertcat(output(oind));
-        assigned[i] = true;
-      }
-    }
-
-    // Linear combination of outputs
-    for (casadi_int i=0; i<s_out_noatt.size(); ++i) {
-      if (assigned[i]) continue;
-      std::map<std::string, MX>::const_iterator j=lin_comb_.find(s_out_noatt[i]);
-      if (j!=lin_comb_.end()) {
-        ret_out[i] = j->second;
-        assigned[i] = true;
-      }
-    }
-
-    // Determine which Jacobian blocks to generate
-    vector<vector<casadi_int> > wanted(DAE_BUILDER_NUM_OUT,
-      vector<casadi_int>(DAE_BUILDER_NUM_IN, -1));
-    for (casadi_int i=0; i<s_out_noatt.size(); ++i) {
-      if (assigned[i]) continue;
-
-      // Get the string without attributes
-      const string& so = s_out_noatt[i];
-
-      // Find the first underscore separator
-      size_t pos = so.find('_');
-      if (pos>=so.size()) continue;
-
-      // Get operation
-      string s = so.substr(0, pos);
-      if (s!="jac") continue;
-
-      // Get expression to be differentiated
-      size_t pos1 = so.find('_', pos+1);
-      if (pos1>=so.size()) continue;
-      s = so.substr(pos+1, pos1-pos-1);
-      DaeBuilderOut oind = enum_out(s);
-      if (oind==DAE_BUILDER_NUM_OUT) continue;
-
-      // Jacobian with respect to what variable
-      s = so.substr(pos1+1, string::npos);
-      DaeBuilderIn iind = enum_in(s);
-      if (iind==DAE_BUILDER_NUM_IN) continue;
-
-      // Check if duplicate
-      casadi_assert(wanted[oind][iind]==-1,
-        "DaeBuilder::function: Duplicate Jacobian " + so);
-      wanted[oind][iind] = i;
-    }
-
-    // Generate Jacobian blocks
-    for (casadi_int oind=0; oind!=DAE_BUILDER_NUM_OUT; ++oind) {
-      for (casadi_int iind=0; iind!=DAE_BUILDER_NUM_IN; ++iind) {
-        // Skip if not wanted
-        if (wanted[oind][iind]==-1) continue;
-
-        // List of blocks to be calculated together, starting with current
-        vector<DaeBuilderIn> ib(1, static_cast<DaeBuilderIn>(iind));
-        vector<DaeBuilderOut> ob(1, static_cast<DaeBuilderOut>(oind));
-
-        // Add other blocks that can be calculated with the same inputs
-        // (typically cheap if forward mode used)
-        for (casadi_int oind1=oind+1; oind1!=DAE_BUILDER_NUM_OUT; ++oind1) {
-          if (wanted[oind1][iind]>=0) {
-            ob.push_back(static_cast<DaeBuilderOut>(oind1));
-          }
-        }
-
-        // Add other blocks that can be calculated with the same outputs
-        // (typically cheap if reverse mode used)
-        for (casadi_int iind1=iind+1; iind1!=DAE_BUILDER_NUM_IN; ++iind1) {
-          // Do we really want _all_ the input/output combinations?
-          bool all_wanted = true;
-          for (casadi_int k=0; k<ob.size() && all_wanted; ++k) {
-            all_wanted = wanted[ob[k]][iind1]>=0;
-          }
-
-          // Add block(s)
-          if (all_wanted) {
-            ib.push_back(static_cast<DaeBuilderIn>(iind1));
-          }
-        }
-
-        // When we know which blocks we are interested in, we form the Jacobian
-        vector<MX> arg=input(ib), res=output(ob);
-        MX J = jacobian(vertcat(res), vertcat(arg));
-
-        // Divide into blocks and copy to output
-        vector<vector<MX> > J_all = blocksplit(J, offset(res), offset(arg));
-        for (casadi_int ki=0; ki<ib.size(); ++ki) {
-          for (casadi_int ko=0; ko<ob.size(); ++ko) {
-            casadi_int& ind=wanted[ob[ko]][ib[ki]];
-            ret_out[ind] = J_all[ko][ki];
-            assigned[ind] = true;
-            ind = -1;
-          }
-        }
-      }
-    }
-
-    // For all linear combinations
-    for (std::map<std::string, MX>::const_iterator lin_comb_it=lin_comb_.begin();
-         lin_comb_it!=lin_comb_.end(); ++lin_comb_it) {
-      // Determine which Hessian blocks to generate
-      wanted.resize(DAE_BUILDER_NUM_IN);
-      fill(wanted.begin(), wanted.end(), vector<casadi_int>(DAE_BUILDER_NUM_IN, -1));
-
-      for (casadi_int i=0; i<s_out_noatt.size(); ++i) {
-        if (assigned[i]) continue;
-
-        // Get the string without attributes
-        const string& so = s_out_noatt[i];
-
-        // Get operation
-        size_t pos = so.find('_');
-        if (pos>=so.size()) continue;
-        string s = so.substr(0, pos);
-        if (s!="hes") continue;
-
-        // Get expression to be differentiated
-        size_t pos1 = so.find('_', pos+1);
-        if (pos1>=so.size()) continue;
-        s = so.substr(pos+1, pos1-pos-1);
-        if (s!=lin_comb_it->first) continue;
-
-        // Get first derivative
-        pos = so.find('_', pos1+1);
-        if (pos>=so.size()) continue;
-        s = so.substr(pos1+1, pos-pos1-1);
-        DaeBuilderIn iind1 = enum_in(s);
-        if (iind1==DAE_BUILDER_NUM_IN) continue;
-
-        // Get second derivative
-        s = so.substr(pos+1, string::npos);
-        DaeBuilderIn iind2 = enum_in(s);
-        if (iind2==DAE_BUILDER_NUM_IN) continue;
-
-        // Check if duplicate
-        casadi_assert(wanted[iind1][iind2]==-1,
-          "DaeBuilder::function: Duplicate Hessian " + so);
-        wanted[iind1][iind2] = i;
-      }
-
-      // Created wanted Hessian blocks
-      for (casadi_int iind1=0; iind1!=DAE_BUILDER_NUM_IN; ++iind1) {
-        for (casadi_int iind2=0; iind2!=DAE_BUILDER_NUM_IN; ++iind2) {
-          // Skip if not wanted
-          if (wanted[iind1][iind2]==-1) continue;
-
-          // List of blocks to be calculated together, starting with current
-          vector<DaeBuilderIn> ib1(1, static_cast<DaeBuilderIn>(iind1));
-          vector<DaeBuilderIn> ib2(1, static_cast<DaeBuilderIn>(iind2));
-
-          // Add other blocks vertically
-          for (casadi_int iind=iind1+1; iind!=DAE_BUILDER_NUM_IN; ++iind) {
-            if (wanted[iind][iind2]>=0 || wanted[iind2][iind]>=0) {
-              ib1.push_back(static_cast<DaeBuilderIn>(iind));
-            }
-          }
-
-          // Add other blocks horizontally
-          for (casadi_int iind=iind2+1; iind!=DAE_BUILDER_NUM_IN; ++iind) {
-            // Do we really want _all_ the blocks?
-            bool all_wanted = true;
-            for (casadi_int k=0; k<ib1.size() && all_wanted; ++k) {
-              all_wanted = wanted[ib1[k]][iind]>=0 || wanted[iind][ib1[k]]>=0;
-            }
-
-            // Add block(s)
-            if (all_wanted) {
-              ib2.push_back(static_cast<DaeBuilderIn>(iind));
-            }
-          }
-
-          // Symmetric or not?
-          bool symmetric=ib1.size()==ib2.size();
-          for (casadi_int i=0; symmetric && i<ib1.size(); ++i) symmetric=ib1[i]==ib2[i];
-
-          // Calculate blocks
-          vector<vector<MX> > H_all;
-          if (symmetric) {
-            vector<MX> arg=input(ib1);
-            MX H = hessian(lin_comb_it->second, vertcat(arg));
-            H_all = blocksplit(H, offset(arg), offset(arg));
-          } else {
-            vector<MX> arg1=input(ib1), arg2=input(ib2);
-            MX g = gradient(lin_comb_it->second, vertcat(arg1));
-            MX J = jacobian(g, vertcat(arg2));
-            H_all = blocksplit(J, offset(arg1), offset(arg2));
-          }
-          // Fetch the requested blocks
-          for (casadi_int k1=0; k1<ib1.size(); ++k1) {
-            for (casadi_int k2=0; k2<ib2.size(); ++k2) {
-              casadi_int& ind=wanted[ib1[k1]][ib2[k2]];
-              if (ind>=0) {
-                ret_out[ind] = H_all[k1][k2];
-                assigned[ind] = true;
-                ind = -1;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Check and post-process outputs
-    for (casadi_int i=0; i<s_out.size(); ++i) {
-      // Make sure all outputs have been assigned
-      if (!assigned[i]) {
-        casadi_error("DaeBuilder::function: Cannot treat output expression " + s_out[i]);
-      }
-
-      // Apply attributes starting from the right-most one
-      MX& r = ret_out[i];
-      for (auto a=attr[i].rbegin(); a!=attr[i].rend(); ++a) {
-        switch (*a) {
-        case ATTR_TRANSPOSE: r = r.T(); break;
-        case ATTR_TRIU: r = triu(r); break;
-        case ATTR_TRIL: r = tril(r); break;
-        case ATTR_DENSIFY: r = densify(r); break;
-        }
-      }
-    }
-
-    // Generate the constructed function
-    return Function(fname, ret_in, ret_out, s_in, s_out);
+    // Call factory
+    return oracle(sx, elim_v).factory(fname, s_in, s_out, lc_);
   }
 
   Function DaeBuilder::add_fun(const Function& f) {
@@ -1957,18 +1678,18 @@ namespace casadi {
     casadi_assert(!has_fun(name), "Function '" + name + "' already exists");
 
     // Get inputs
-    vector<MX> arg_ex, res_ex;
+    std::vector<MX> arg_ex, res_ex;
     for (auto&& s : arg) arg_ex.push_back(var(s));
     for (auto&& s : res) {
       // Find the binding expression FIXME(@jaeandersson)
-      casadi_int d_ind;
-      for (d_ind=0; d_ind<this->d.size(); ++d_ind) {
-        if (s==this->d.at(d_ind).name()) {
-          res_ex.push_back(this->ddef.at(d_ind));
+      casadi_int v_ind;
+      for (v_ind=0; v_ind<this->v.size(); ++v_ind) {
+        if (s==this->v.at(v_ind).name()) {
+          res_ex.push_back(this->vdef.at(v_ind));
           break;
         }
       }
-      casadi_assert(d_ind<this->d.size(), "Cannot find dependent '" + s + "'");
+      casadi_assert(v_ind<this->v.size(), "Cannot find dependent '" + s + "'");
     }
     Function ret(name, arg_ex, res_ex, arg, res, opts);
     return add_fun(ret);
@@ -1993,6 +1714,61 @@ namespace casadi {
       if (f.name()==name) return f;
     }
     return Function();
+  }
+
+  void DaeBuilder::clear_cache() {
+    for (bool elim_v : {false, true}) {
+      if (!mx_oracle_[elim_v].is_null()) mx_oracle_[elim_v] = Function();
+      if (!sx_oracle_[elim_v].is_null()) sx_oracle_[elim_v] = Function();
+    }
+  }
+
+  const Function& DaeBuilder::oracle(bool sx, bool elim_v) const {
+    // Create an MX oracle, if needed
+    if (mx_oracle_[elim_v].is_null()) {
+      // Oracle function inputs and outputs
+      std::vector<MX> f_in, f_out, v;
+      std::vector<std::string> f_in_name, f_out_name;
+      // Do we need to substitute out v
+      bool subst_v = false;
+      // Collect all DAE input variables with at least one entry
+      for (casadi_int i = 0; i != DAE_BUILDER_NUM_IN; ++i) {
+        v = input(static_cast<DaeBuilderIn>(i));
+        if (!v.empty()) {
+          if (elim_v && i == DAE_BUILDER_V) {
+            subst_v = true;
+          } else {
+            f_in.push_back(vertcat(v));
+            f_in_name.push_back(name_in(static_cast<DaeBuilderIn>(i)));
+          }
+        }
+      }
+      // Collect all DAE output variables with at least one entry
+      for (casadi_int i = 0; i != DAE_BUILDER_NUM_OUT; ++i) {
+        v = output(static_cast<DaeBuilderOut>(i));
+        if (!v.empty()) {
+          f_out.push_back(vertcat(v));
+          f_out_name.push_back(name_out(static_cast<DaeBuilderOut>(i)));
+        }
+      }
+      // Eliminate v from inputs
+      if (subst_v) {
+        // Make a copy of dependent variable definitions to avoid modifying member variable
+        std::vector<MX> vdef(this->vdef);
+        // Perform in-place substitution
+        substitute_inplace(this->v, vdef, f_out, false);
+      }
+      // Create oracle
+      mx_oracle_[elim_v] = Function("mx_oracle", f_in, f_out, f_in_name, f_out_name);
+    }
+    // Return MX oracle, if requested
+    if (!sx) return mx_oracle_[elim_v];
+    // Create SX oracle, if needed
+    if (sx_oracle_[elim_v].is_null()) {
+      sx_oracle_[elim_v] = mx_oracle_[elim_v].expand("sx_oracle");
+    }
+    // Return SX oracle
+    return sx_oracle_[elim_v];
   }
 
 } // namespace casadi

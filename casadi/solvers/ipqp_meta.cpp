@@ -23,39 +23,9 @@
  */
 
 
-#include "exception.hpp"
-#include "variable.hpp"
+      #include "ipqp.hpp"
+      #include <string>
 
-using namespace std;
-namespace casadi {
-
-  Variable::Variable(const std::string& name, const Sparsity& sp, const MX& v, const MX& d)
-      : v(v), d(d) {
-    if (this->v.is_empty()) this->v = MX::sym(name, sp);
-    if (this->d.is_empty()) this->d = MX::sym("der_" + name, sp);
-    this->variability = CONTINUOUS;
-    this->causality = INTERNAL;
-    this->category = CAT_UNKNOWN;
-    this->alias = NO_ALIAS;
-    this->description = "";
-    this->valueReference = -1;
-    this->min = -numeric_limits<double>::infinity();
-    this->max = numeric_limits<double>::infinity();
-    this->guess = 0;
-    this->nominal = 1.0;
-    this->start = 0.0;
-    this->derivative_start = 0.0;
-    this->unit = "";
-    this->display_unit = "";
-    this->free = false;
-  }
-
-  string Variable::name() const {
-    return this->v.name();
-  }
-
-  void Variable::disp(ostream &stream, bool more) const {
-    stream << name();
-  }
-
-} // namespace casadi
+      const std::string casadi::Ipqp::meta_doc=
+      "\n"
+;

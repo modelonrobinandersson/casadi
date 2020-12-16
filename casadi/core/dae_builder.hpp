@@ -27,6 +27,7 @@
 #define CASADI_DAE_BUILDER_HPP
 
 #include "variable.hpp"
+#include "function.hpp"
 
 namespace casadi {
 
@@ -39,35 +40,31 @@ namespace casadi {
       t:      time
       \endverbatim
 
-      <H3>Time-continuous variables:  </H3>
+      <H3>Variables:  </H3>
       \verbatim
       x:      states defined by ODE
       s:      implicitly defined states
       z:      algebraic variables
       u:      control signals
       q:      quadrature states
-      y:      outputs
-      \endverbatim
-
-      <H3>Time-constant variables:  </H3>
-      \verbatim
       p:      free parameters
-      d:      dependent parameters
+      v:      dependent variables
+      y:      outputs
       \endverbatim
 
       <H3>Dynamic constraints (imposed everywhere):  </H3>
       \verbatim
-      ODE                    \dot{x} ==  ode(t, x, s, z, u, p, d)
-      DAE or implicit ODE:         0 ==  dae(t, x, s, z, u, p, d, sdot)
-      algebraic equations:         0 ==  alg(t, x, s, z, u, p, d)
-      quadrature equations:  \dot{q} == quad(t, x, s, z, u, p, d)
-      dependent parameters:        d == ddef(t, x, s, z, u, p, d)
-      output equations:            y == ydef(t, x, s, z, u, p, d)
+      ODE                    \dot{x} ==  ode(t, x, s, z, u, p, v)
+      DAE or implicit ODE:         0 ==  dae(t, x, s, z, u, p, v, sdot)
+      algebraic equations:         0 ==  alg(t, x, s, z, u, p, v)
+      quadrature equations:  \dot{q} == quad(t, x, s, z, u, p, v)
+      dependent parameters:        d == ddef(t, x, s, z, u, p, v)
+      output equations:            y == ydef(t, x, s, z, u, p, v)
       \endverbatim
 
       <H3>Point constraints (imposed pointwise):  </H3>
       \verbatim
-      Initial equations:           0 == init(t, x, s, z, u, p, d, sdot)
+      Initial equations:           0 == init(t, x, s, z, u, p, v, sdot)
       \endverbatim
 
       \date 2012-2015
@@ -107,11 +104,6 @@ namespace casadi {
      */
     std::vector<MX> q, quad, lam_quad;
 
-
-    /** \brief Local variables and corresponding definitions
-     */
-    std::vector<MX> w, wdef, lam_wdef;
-
     /** \brief Output variables and corresponding definitions
      */
     std::vector<MX> y, ydef, lam_ydef;
@@ -134,7 +126,7 @@ namespace casadi {
     /** \brief Dependent parameters and corresponding definitions
      * Interdependencies are allowed but must be non-cyclic.
      */
-    std::vector<MX> d, ddef, lam_ddef;
+    std::vector<MX> v, vdef, lam_vdef;
     ///@}
 
     /** \brief Auxiliary variables: Used e.g. to define functions */
@@ -170,7 +162,7 @@ namespace casadi {
     MX add_q(const std::string& name=std::string(), casadi_int n=1);
 
     /// Add a new dependent parameter
-    MX add_d(const std::string& name, const MX& new_ddef);
+    MX add_v(const std::string& name, const MX& new_vdef);
 
     /// Add a new output
     MX add_y(const std::string& name, const MX& new_ydef);
@@ -194,6 +186,21 @@ namespace casadi {
     void sanity_check() const;
     ///@}
 
+    /** @name Register an existing variable */
+    ///@{
+    /// Register differential state
+    void register_x(const MX& new_x, const MX& new_der_x = MX());
+
+    /// Register algebraic variable
+    void register_z(const MX& new_z, const MX& new_der_z = MX());
+
+    /// Register dependent variable
+    void register_v(const MX& new_v, const MX& new_vdef, const MX& new_der_v = MX());
+
+    /// Register output variable
+    void register_y(const MX& new_y, const MX& new_ydef, const MX& new_der_y = MX());
+    ///@}
+
     /** @name Manipulation
      *  Reformulate the dynamic optimization problem.
      */
@@ -211,14 +218,14 @@ namespace casadi {
     /// Transform the implicit DAE or semi-explicit DAE into an explicit ODE
     void make_explicit();
 
-    /// Sort dependent parameters
-    void sort_d();
+    /// Sort dependent variables
+    void sort_v();
 
     /// Eliminate interdependencies amongst dependent parameters
-    void split_d();
+    void split_v();
 
     /// Eliminate dependent parameters
-    void eliminate_d();
+    void eliminate_v();
 
     /// Eliminate quadrature states and turn them into ODE states
     void eliminate_quad();
@@ -272,22 +279,20 @@ namespace casadi {
       DAE_BUILDER_T,
       DAE_BUILDER_C,
       DAE_BUILDER_P,
-      DAE_BUILDER_D,
+      DAE_BUILDER_V,
       DAE_BUILDER_U,
       DAE_BUILDER_X,
       DAE_BUILDER_S,
       DAE_BUILDER_SDOT,
       DAE_BUILDER_Z,
       DAE_BUILDER_Q,
-      DAE_BUILDER_W,
       DAE_BUILDER_Y,
       DAE_BUILDER_NUM_IN
     };
 
     // Output convension in codegen
     enum DaeBuilderOut {
-      DAE_BUILDER_DDEF,
-      DAE_BUILDER_WDEF,
+      DAE_BUILDER_VDEF,
       DAE_BUILDER_ODE,
       DAE_BUILDER_DAE,
       DAE_BUILDER_ALG,
@@ -327,23 +332,19 @@ namespace casadi {
     std::vector<MX> output(DaeBuilderOut ind) const;
 
     // Get input expression, given enum
-    std::vector<MX> input(std::vector<DaeBuilderIn>& ind) const;
+    std::vector<MX> input(const std::vector<DaeBuilderIn>& ind) const;
 
     // Get output expression, given enum
-    std::vector<MX> output(std::vector<DaeBuilderOut>& ind) const;
-
-    // Get multiplier corresponding to an output expression, given enum
-    std::vector<MX> multiplier(DaeBuilderOut ind) const;
+    std::vector<MX> output(const std::vector<DaeBuilderOut>& ind) const;
 #endif // SWIG
 
     /// Add a named linear combination of output expressions
-    MX add_lc(const std::string& name,
-              const std::vector<std::string>& f_out);
+    void add_lc(const std::string& name, const std::vector<std::string>& f_out);
 
     /// Construct a function object
     Function create(const std::string& fname,
-                    const std::vector<std::string>& s_in,
-                    const std::vector<std::string>& s_out) const;
+        const std::vector<std::string>& s_in,
+        const std::vector<std::string>& s_out, bool sx = false) const;
     ///@}
 
     /// Get variable expression by name
@@ -461,11 +462,17 @@ namespace casadi {
     /// Add a new variable: returns corresponding symbolic expression
     MX add_variable(const std::string& name, const Sparsity& sp);
 
+    /// Add a new variable from symbolic expressions
+    void add_variable(const MX& new_v, const MX& new_der_v);
+
     ///@{
     /// Access a variable by name
     Variable& variable(const std::string& name);
     const Variable& variable(const std::string& name) const;
     ///@}
+
+      /// Get the (cached) oracle, SX or MX
+    const Function& oracle(bool sx = false, bool elim_v = false) const;
 
 #ifndef SWIG
     // Internal methods
@@ -479,10 +486,13 @@ namespace casadi {
     VarMap varmap_;
 
     /// Linear combinations of output expressions
-    std::map<std::string, MX> lin_comb_;
+    Function::AuxOut lc_;
 
     /** \brief Functions */
     std::vector<Function> fun_;
+
+    /** \brief Function oracles (cached) */
+    mutable Function sx_oracle_[2], mx_oracle_[2];
 
     /// Read an equation
     MX read_expr(const XmlNode& node);
@@ -505,6 +515,9 @@ namespace casadi {
     /// Set a symbolic attribute by expression
     typedef void (DaeBuilder::*setAttS)(const std::string& name, const MX& val);
     void set_attribute(setAttS f, const MX& var, const MX& val);
+
+    /// Problem structure has changed: Clear cache
+    void clear_cache();
 
 #endif // SWIG
 

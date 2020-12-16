@@ -220,12 +220,6 @@ namespace casadi {
 #endif // SWIG
     ///@}
 
-#ifdef WITH_DEPRECATED_FEATURES
-    /** \brief [DEPRECATED] Correctness of sparsity patterns are checked during
-              construction */
-    void sanity_check(bool complete=false) const {}
-#endif // WITH_DEPRECATED_FEATURES
-
     /** Get the diagonal of the matrix/create a diagonal matrix
         (mapping will contain the nonzero mapping)
         When the input is square, the diagonal elements are returned.
@@ -634,10 +628,10 @@ namespace casadi {
     bool is_symmetric() const;
 
     /// Is upper triangular?
-    bool is_triu() const;
+    bool is_triu(bool strictly = false) const;
 
     /// Is lower triangular?
-    bool is_tril() const;
+    bool is_tril(bool strictly = false) const;
 
     /// Check whether the sparsity-pattern indicates structural singularity
     bool is_singular() const;
