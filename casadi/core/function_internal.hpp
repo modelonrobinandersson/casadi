@@ -168,10 +168,6 @@ namespace casadi {
       return class_name();
     }
 
-  protected:
-    /** \brief Deserializing constructor */
-    explicit ProtoFunction(DeserializingStream& s);
-
     /// Name
     std::string name_;
 
@@ -186,6 +182,10 @@ namespace casadi {
 
     /// Errors are thrown when NaN is produced
     bool regularity_check_;
+
+  protected:
+    /** \brief Deserializing constructor */
+    explicit ProtoFunction(DeserializingStream& s);
 
 #ifdef CASADI_WITH_THREAD
     /// Mutex for thread safety
