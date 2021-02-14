@@ -59,6 +59,7 @@ namespace casadi {
     verbose_ = false;
     print_time_ = false;
     record_time_ = false;
+    regularity_check_ = false;
   }
 
   FunctionInternal::FunctionInternal(const std::string& name) : ProtoFunction(name) {
@@ -79,7 +80,6 @@ namespace casadi {
     jac_penalty_ = 2;
     max_num_dir_ = GlobalOptions::getMaxNumDir();
     user_data_ = nullptr;
-    regularity_check_ = false;
     inputs_check_ = true;
     jit_ = false;
     jit_cleanup_ = true;
@@ -164,7 +164,10 @@ namespace casadi {
         "print information about execution time. Implies record_time."}},
       {"record_time",
        {OT_BOOL,
-        "record information about execution time, for retrieval with stats()."}}
+        "record information about execution time, for retrieval with stats()."}},
+      {"regularity_check",
+       {OT_BOOL,
+        "Throw exceptions when NaN or Inf appears during evaluation"}}
       }
   };
 
@@ -206,9 +209,6 @@ namespace casadi {
        {OT_VOIDPTR,
         "A user-defined field that can be used to identify "
         "the function or pass additional information"}},
-      {"regularity_check",
-       {OT_BOOL,
-        "Throw exceptions when NaN or Inf appears during evaluation"}},
       {"inputs_check",
        {OT_BOOL,
         "Throw exceptions when the numerical values of the inputs don't make sense"}},
@@ -329,6 +329,8 @@ namespace casadi {
         print_time_ = op.second;
       } else if (op.first=="record_time") {
         record_time_ = op.second;
+      } else if (op.first=="regularity_check") {
+        regularity_check_ = op.second;
       }
     }
   }
@@ -338,6 +340,7 @@ namespace casadi {
     opts["verbose"] = verbose_;
     opts["print_time"] = print_time_;
     opts["record_time"] = record_time_;
+    opts["regularity_check"] = regularity_check_;
     return opts;
   }
 
@@ -392,8 +395,6 @@ namespace casadi {
         jac_penalty_ = op.second;
       } else if (op.first=="user_data") {
         user_data_ = op.second.to_void_pointer();
-      } else if (op.first=="regularity_check") {
-        regularity_check_ = op.second;
       } else if (op.first=="inputs_check") {
         inputs_check_ = op.second;
       } else if (op.first=="gather_stats") {
@@ -3519,20 +3520,21 @@ namespace casadi {
   }
 
   void ProtoFunction::serialize_body(SerializingStream& s) const {
-    s.version("ProtoFunction", 1);
+    s.version("ProtoFunction", 2);
     s.pack("ProtoFunction::name", name_);
     s.pack("ProtoFunction::verbose", verbose_);
     s.pack("ProtoFunction::print_time", print_time_);
     s.pack("ProtoFunction::record_time", record_time_);
+    s.pack("FunctionInternal::regularity_check", regularity_check_);
   }
 
   ProtoFunction::ProtoFunction(DeserializingStream& s) {
-    s.version("ProtoFunction", 1);
+    int version = s.version("ProtoFunction", 1, 2);
     s.unpack("ProtoFunction::name", name_);
     s.unpack("ProtoFunction::verbose", verbose_);
-
     s.unpack("ProtoFunction::print_time", print_time_);
     s.unpack("ProtoFunction::record_time", record_time_);
+    if (version >= 2) s.unpack("ProtoFunction::regularity_check", regularity_check_);
   }
 
   void FunctionInternal::serialize_type(SerializingStream &s) const {
@@ -3541,7 +3543,7 @@ namespace casadi {
 
   void FunctionInternal::serialize_body(SerializingStream& s) const {
     ProtoFunction::serialize_body(s);
-    s.version("FunctionInternal", 2);
+    s.version("FunctionInternal", 3);
     s.pack("FunctionInternal::is_diff_in", is_diff_in_);
     s.pack("FunctionInternal::is_diff_out", is_diff_out_);
     s.pack("FunctionInternal::sp_in", sparsity_in_);
@@ -3586,8 +3588,6 @@ namespace casadi {
 
     s.pack("FunctionInternal::max_num_dir", max_num_dir_);
 
-    s.pack("FunctionInternal::regularity_check", regularity_check_);
-
     s.pack("FunctionInternal::inputs_check", inputs_check_);
 
     s.pack("FunctionInternal::fd_step", fd_step_);
@@ -3614,7 +3614,7 @@ namespace casadi {
   }
 
   FunctionInternal::FunctionInternal(DeserializingStream& s) : ProtoFunction(s) {
-    int version = s.version("FunctionInternal", 1, 2);
+    int version = s.version("FunctionInternal", 1, 3);
     s.unpack("FunctionInternal::is_diff_in", is_diff_in_);
     s.unpack("FunctionInternal::is_diff_out", is_diff_out_);
     s.unpack("FunctionInternal::sp_in", sparsity_in_);
@@ -3624,7 +3624,7 @@ namespace casadi {
 
     s.unpack("FunctionInternal::jit", jit_);
     s.unpack("FunctionInternal::jit_cleanup", jit_cleanup_);
-    if (version==1) {
+    if (version < 2) {
       jit_serialize_ = "source";
     } else {
       s.unpack("FunctionInternal::jit_serialize", jit_serialize_);
@@ -3672,7 +3672,7 @@ namespace casadi {
 
     s.unpack("FunctionInternal::max_num_dir", max_num_dir_);
 
-    s.unpack("FunctionInternal::regularity_check", regularity_check_);
+    if (version < 3) s.unpack("FunctionInternal::regularity_check", regularity_check_);
 
     s.unpack("FunctionInternal::inputs_check", inputs_check_);
 
