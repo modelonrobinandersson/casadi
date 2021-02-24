@@ -364,42 +364,47 @@ namespace casadi {
     /** \brief Do the derivative functions need nondifferentiated outputs? */
     bool uses_output() const;
 
-    ///@{
-    /** \brief Generate a Jacobian function of output \a oind with respect to input \a iind
-     * \param iind The index of the input
-     * \param oind The index of the output
-     * Legacy function: To be deprecated in a future version of CasADi.
-     * Exists only for compatibility with Function::jacobian pre-CasADi 3.2
-     */
+#ifdef WITH_DEPRECATED_FEATURES
+    /** \brief [DEPRECATED] Replaced by Function::factory. */
     Function jacobian_old(casadi_int iind, casadi_int oind) const;
 
-    /** \brief Generate a Hessian function of output \a oind with respect to input \a iind
-     * \param iind The index of the input
-     * \param oind The index of the output
-     * Legacy function: To be deprecated in a future version of CasADi.
-     * Exists only for compatibility with Function::hessian pre-CasADi 3.2
-     */
+    /** \brief [DEPRECATED] Replaced by Function::factory. */
     Function hessian_old(casadi_int iind, casadi_int oind) const;
 
-    /** \brief Generate a Jacobian function of all the inputs elements with respect to all
-     * the output elements).
-     */
-    Function jacobian() const;
+    ///@{
+    /// [DEPRECATED] Get, if necessary generate, the sparsity of a Jacobian block
+    const Sparsity sparsity_jac(casadi_int iind, casadi_int oind,
+                                bool compact=false, bool symmetric=false) const;
+    const Sparsity sparsity_jac(const std::string &iind, casadi_int oind=0,
+                                bool compact=false, bool symmetric=false) const {
+      return sparsity_jac(index_in(iind), oind, compact, symmetric);
+    }
+    const Sparsity sparsity_jac(casadi_int iind, const std::string &oind,
+                                bool compact=false, bool symmetric=false) const {
+      return sparsity_jac(iind, index_out(oind), compact, symmetric);
+    }
+    const Sparsity sparsity_jac(const std::string &iind, const std::string &oind,
+                                bool compact=false, bool symmetric=false) const {
+      return sparsity_jac(index_in(iind), index_out(oind), compact, symmetric);
+    }
+    ///@}
+#endif // WITH_DEPRECATED_FEATURES
 
-    /** \brief Calculate all Jacobian blocks
-      * Generates a function that takes all non-differentiated inputs and outputs
-      * and calculates all Jacobian blocks.
-      * Inputs that are not needed by the routine are all-zero sparse matrices
-      * with the correct dimensions. Output blocks that are not calculated,
-      * e.g. if the corresponding input or output is marked non-differentiated
-      * are also all-zero sparse.
-      * The Jacobian blocks are sorted starting by all the blocks for the first
-      * output, then all the blocks for the second output and so on.
-      * E.g. f:(x,y)->(r,s) results in the function
-      * jac_f:(x,y,r,s)->(dr_dx, dr_dy, ds_dx, ds_dy)
-      * This function is cached.
-      */
-    Function jac() const;
+  /** \brief Calculate all Jacobian blocks
+    * Generates a function that takes all non-differentiated inputs and outputs
+    * and calculates all Jacobian blocks.
+    * Inputs that are not needed by the routine are all-zero sparse matrices
+    * with the correct dimensions. Output blocks that are not calculated,
+    * e.g. if the corresponding input or output is marked non-differentiated
+    * are also all-zero sparse.
+    * The Jacobian blocks are sorted starting by all the blocks for the first
+    * output, then all the blocks for the second output and so on.
+    * E.g. f : (x, y) -> (r, s) results in the function
+    * jac_f : (x, y, out_r, out_s) -> (jac_r_x, jac_r_y, jac_s_x, jac_s_y)
+    *
+    * This function is cached.
+    */
+    Function jacobian() const;
 
     ///@{
     /** \brief Evaluate the function symbolically or numerically  */
@@ -673,23 +678,11 @@ namespace casadi {
      */
     Function reverse(casadi_int nadj) const;
 
-    ///@{
-    /// Get, if necessary generate, the sparsity of a Jacobian block
-    const Sparsity sparsity_jac(casadi_int iind, casadi_int oind,
-                                bool compact=false, bool symmetric=false) const;
-    const Sparsity sparsity_jac(const std::string &iind, casadi_int oind=0,
-                                bool compact=false, bool symmetric=false) const {
-      return sparsity_jac(index_in(iind), oind, compact, symmetric);
-    }
-    const Sparsity sparsity_jac(casadi_int iind, const std::string &oind,
-                                bool compact=false, bool symmetric=false) const {
-      return sparsity_jac(iind, index_out(oind), compact, symmetric);
-    }
-    const Sparsity sparsity_jac(const std::string &iind, const std::string &oind,
-                                bool compact=false, bool symmetric=false) const {
-      return sparsity_jac(index_in(iind), index_out(oind), compact, symmetric);
-    }
-    ///@}
+    /** \brief Get, if necessary generate, the sparsity of all Jacobian blocks */
+    const std::vector<Sparsity>& jac_sparsity(bool compact = false) const;
+
+    /** \brief Get, if necessary generate, the sparsity of a single Jacobian block */
+    Sparsity jac_sparsity(casadi_int oind, casadi_int iind, bool compact = false) const;
 
     /** \brief Export / Generate C code for the function */
     std::string generate(const std::string& fname, const Dict& opts=Dict()) const;
@@ -701,7 +694,7 @@ namespace casadi {
     std::string generate_dependencies(const std::string& fname, const Dict& opts=Dict()) const;
 
     /** \brief Export an input file that can be passed to generate C code with a main
-     * 
+     *
      * \seealso generate_out
      * \seealso convert_in to convert between dict/map and vector
      */
@@ -711,7 +704,7 @@ namespace casadi {
     /// @}
 
     /** \brief Export an output file that can be checked with generated C code output
-     * 
+     *
      * \seealso generate_in
      * \seealso convert_out to convert between dict/map and vector
      */
@@ -810,10 +803,10 @@ namespace casadi {
     std::vector<DM> nz_to_out(const std::vector<double>& arg) const;
     ///@}
 
-    /** \brief Convert from/to input/output lists/map 
+    /** \brief Convert from/to input/output lists/map
     *
     * Will raise an error when an unknown key is used or a list has incorrect size.
-    * Does not perform sparsity checking. 
+    * Does not perform sparsity checking.
     */
     /// @{
     DMDict convert_in(const std::vector<DM>& arg) const;

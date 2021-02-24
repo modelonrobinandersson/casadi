@@ -61,7 +61,7 @@ except Exception as e:
     systemswig = False
   else:
     systemswig = True
-    
+
 # Pending deprecation in numpy
 check_matrix = False
 
@@ -151,6 +151,14 @@ def toMX_fun(fun):
   ins = fun.mx_in()
   return Function("f",ins,fun(ins))
 
+def jacobian_old(f, i, j):
+    return f.factory(f.name() + '_jac', f.name_in(),
+        ['jac:' + f.name_out(j) + ':' + f.name_in(i)] + f.name_out())
+
+def hessian_old(f, i, j):
+    return f.factory(f.name() + '_hess', f.name_in(),
+        ['hess:' + f.name_out(j) + ':' + f.name_in(i) + ":" + f.name_in(i),
+        'grad:' + f.name_out(j) + ':' + f.name_in(i)] + f.name_out())
 
 class casadiTestCase(unittest.TestCase):
 
@@ -400,7 +408,7 @@ class casadiTestCase(unittest.TestCase):
 
     for i in range(trial.n_in()):
       if (allow_empty and (trial.sparsity_in(i).is_empty() or solution.sparsity_in(i).is_empty() )): continue
-      message = "input(%d)" % i
+      message = "input(%d: '%s')" % (i, trial.name_in(i))
 
     for i in range(2): # repeated evaluation
       try:
@@ -413,7 +421,7 @@ class casadiTestCase(unittest.TestCase):
       self.assertEqual(trial.n_in(),solution.n_in(),failmessage+": trial has %d inputs while solution has %d." % (trial.n_in(),solution.n_in()) )
 
       for i in range(trial.n_out()):
-        message = "output(%d)" % i
+        message = "output(%d: '%s')" % (i, trial.name_out(i))
         if (allow_empty and (trial.sparsity_out(i).is_empty() or solution.sparsity_out(i).is_empty() )): continue
         if (allow_nondiff and (trial.sparsity_out(i).nnz()==0 or solution.sparsity_out(i).nnz()==0 )): continue
         self.checkarray(trial_outputs[i],solution_outputs[i],"",digits=digits,failmessage=failmessage+": "+message)
@@ -422,10 +430,10 @@ class casadiTestCase(unittest.TestCase):
       for i in range(trial.n_in()):
         if (allow_empty and (trial.sparsity_in(i).is_empty() or solution.sparsity_in(i).is_empty() )): continue
         for j in range(trial.n_out()):
-          trialjac = trial.jacobian_old(i,j)
+          trialjac = jacobian_old(trial, i, j)
           self.assertEqual(trialjac.n_in(),trial.n_in())
           self.assertEqual(trialjac.n_out(),trial.n_out()+1)
-          solutionjac = solution.jacobian_old(i,j)
+          solutionjac = jacobian_old(solution, i, j)
           self.assertEqual(solutionjac.n_in(),solution.n_in())
           self.assertEqual(solutionjac.n_out(),solution.n_out()+1)
 
@@ -436,10 +444,10 @@ class casadiTestCase(unittest.TestCase):
         if (allow_empty and (trial.sparsity_in(i).is_empty() or solution.sparsity_in(i).is_empty() )): continue
         for j in range(trial.n_out()):
           if trial.sparsity_out(j).is_scalar() and solution.sparsity_out(j).is_scalar():
-            trialhess = trial.hessian_old(i,j)
+            trialhess = hessian_old(trial, i, j)
             self.assertEqual(trialhess.n_in(),trial.n_in())
             self.assertEqual(trialhess.n_out(),trial.n_out()+2)
-            solutionhess = solution.hessian_old(i,j)
+            solutionhess = hessian_old(solution, i, j)
             self.assertEqual(solutionhess.n_in(),solution.n_in())
             self.assertEqual(solutionhess.n_out(),solution.n_out()+2)
             self.checkfunction(trialhess,solutionhess,inputs=inputs,fwd=fwd  if sens_der else False,adj=adj  if sens_der else False,jacobian=False,gradient=False,hessian=False,evals=False,digits=digits_sens,failmessage="(%s).hessian_old(%d,%d)" % (failmessage,i,j),allow_empty=allow_empty,verbose=verbose,allow_nondiff=allow_nondiff)
@@ -585,7 +593,7 @@ class casadiTestCase(unittest.TestCase):
         else:
           defs = " ".join(["-D"+d for d in definitions])
           output = "./" + name + (".so" if shared else "")
-          commands = "gcc -pedantic -std={std} -fPIC {shared} -Wall -Werror -Wextra -I{includedir} -Wno-unknown-pragmas -Wno-long-long -Wno-unused-parameter -O3 {definitions} {name}.c -o {name_out} -L{libdir}".format(shared="-shared" if shared else "",std=std,name=name,name_out=name+(".so" if shared else ""),libdir=libdir,includedir=includedir,definitions=defs) + (" -lm" if not shared else "") + extralibs + extra_options 
+          commands = "gcc -pedantic -std={std} -fPIC {shared} -Wall -Werror -Wextra -I{includedir} -Wno-unknown-pragmas -Wno-long-long -Wno-unused-parameter -O3 {definitions} {name}.c -o {name_out} -L{libdir}".format(shared="-shared" if shared else "",std=std,name=name,name_out=name+(".so" if shared else ""),libdir=libdir,includedir=includedir,definitions=defs) + (" -lm" if not shared else "") + extralibs + extra_options
           return [commands, output]
 
       [commands, libname] = get_commands(shared=True)
@@ -629,7 +637,7 @@ class casadiTestCase(unittest.TestCase):
         self.check_serialize(F2,inputs=inputs)
 
   def check_thread_safety(self,F,inputs=None,N=20):
-    
+
     FP = F.map(N, 'thread',2)
     FS = F.map(N, 'thread')
     self.checkfunction_light(FP, FS, inputs)

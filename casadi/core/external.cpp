@@ -92,6 +92,7 @@ namespace casadi {
   bool GenericExternal::any_symbol_found() const {
     return External::any_symbol_found() ||
       get_sparsity_in_ || get_sparsity_out_ ||
+      get_diff_in_ || get_diff_out_ ||
       checkout_ || release_ ||
       eval_;
   }
@@ -102,12 +103,19 @@ namespace casadi {
     get_sparsity_in_ = (sparsity_t)li_.get_function(name_ + "_sparsity_in");
     get_sparsity_out_ = (sparsity_t)li_.get_function(name_ + "_sparsity_out");
 
+    // Differentiability of inputs and outputs
+    get_diff_in_ = (diff_t)li_.get_function(name_ + "_diff_in");
+    get_diff_out_ = (diff_t)li_.get_function(name_ + "_diff_out");
+
     // Memory management functions
     checkout_ = (casadi_checkout_t) li_.get_function(name_ + "_checkout");
     release_ = (casadi_release_t) li_.get_function(name_ + "_release");
 
     // Function for numerical evaluation
     eval_ = (eval_t)li_.get_function(name_);
+
+    // Sparsity patterns of Jacobians
+    get_jac_sparsity_ = (sparsity_t)li_.get_function("jac_" + name_ + "_sparsity_out");
   }
 
   External::~External() {
@@ -200,6 +208,54 @@ namespace casadi {
     }
   }
 
+  bool GenericExternal::has_jac_sparsity(casadi_int oind, casadi_int iind) const {
+    // Flat index
+    casadi_int ind = iind + oind * n_in_;
+    // Jacobian sparsity pattern known?
+    if (get_jac_sparsity_ || li_.has_meta("JAC_" + name_ + "_SPARSITY_OUT", ind)) {
+      return true;
+    } else {
+      // Fall back to base class
+      return FunctionInternal::has_jac_sparsity(oind, iind);
+    }
+  }
+
+  Sparsity GenericExternal::get_jac_sparsity(casadi_int oind, casadi_int iind,
+      bool symmetric) const {
+    // Flat index
+    casadi_int ind = iind + oind * n_in_;
+    // Use sparsity retrieval function, if present
+    if (get_jac_sparsity_) {
+      return Sparsity::compressed(get_jac_sparsity_(ind));
+    } else if (li_.has_meta("JAC_" + name_ + "_SPARSITY_OUT", ind)) {
+      return Sparsity::compressed(
+        li_.meta_vector<casadi_int>("jac_" + name_ + "_SPARSITY_OUT", ind));
+    } else {
+      // Fall back to base class
+      return FunctionInternal::get_jac_sparsity(oind, iind, symmetric);
+    }
+  }
+
+  bool GenericExternal::get_diff_in(casadi_int i) {
+    if (get_diff_in_) {
+      // Query function exists
+      return get_diff_in_(i);
+    } else {
+      // Fall back to base class
+      return FunctionInternal::get_diff_in(i);
+    }
+  }
+
+  bool GenericExternal::get_diff_out(casadi_int i) {
+    if (get_diff_out_) {
+      // Query function exists
+      return get_diff_out_(i);
+    } else {
+      // Fall back to base class
+      return FunctionInternal::get_diff_out(i);
+    }
+  }
+
   void External::init(const Dict& opts) {
     // Call the initialization method of the base class
     FunctionInternal::init(opts);
@@ -228,15 +284,7 @@ namespace casadi {
       sz_w = v[3];
     }
 
-    // Get information about Jacobian sparsity, if any
-    sparsity_t jac_sparsity_fcn = (sparsity_t)li_.get_function("jac_" + name_ + "_sparsity_out");
-    if (jac_sparsity_fcn) {
-      set_jac_sparsity(Sparsity::compressed(jac_sparsity_fcn(0)));
-    } else if (li_.has_meta("JAC_" + name_ + "_SPARSITY_OUT", 0)) {
-      vector<casadi_int> sp = li_.meta_vector<casadi_int>("jac_" + name_ + "_SPARSITY_OUT", 0);
-      set_jac_sparsity(Sparsity::compressed(sp));
-    }
-
+    // Work vectors
     alloc_arg(sz_arg);
     alloc_res(sz_res);
     alloc_iw(sz_iw);
@@ -335,27 +383,31 @@ namespace casadi {
     // Retrieve function
     Function ret = external(name, li_, opts);
 
+    // Replace colons in input names
+    std::vector<std::string> s_io(s_in);
+    for (std::string& s : s_io) replace(s.begin(), s.end(), ':', '_');
+
     // Inputs consistency checks
     casadi_assert(s_in.size() == ret.n_in(),
       "Inconsistent number of inputs. Expected " + str(s_in.size())+ "  "
-      "(" + str(s_in) + "), got " + str(ret.n_in()) + ".");
-    for (casadi_int i=0; i<s_in.size(); ++i) {
-      string s = s_in[i];
-      replace(s.begin(), s.end(), ':', '_');
-      casadi_assert(s == ret.name_in(i),
-        "Inconsistent input name. Expected: " + str(s_in) + ", "
+      "(" + str(s_io) + "), got " + str(ret.n_in()) + ".");
+    for (size_t i = 0; i < s_in.size(); ++i) {
+      casadi_assert(s_io[i] == ret.name_in(i),
+        "Inconsistent input name. Expected: " + str(s_io) + ", "
         "got " + ret.name_in(i) + " for input " + str(i));
     }
+
+    // Replace colons in output names
+    s_io = s_out;
+    for (std::string& s : s_io) replace(s.begin(), s.end(), ':', '_');
 
     // Outputs consistency checks
     casadi_assert(s_out.size() == ret.n_out(),
       "Inconsistent number of outputs. Expected " + str(s_out.size()) + " "
-      "(" + str(s_out) + "), got " + str(ret.n_out()) + ".");
-    for (casadi_int i=0; i<s_out.size(); ++i) {
-      string s = s_out[i];
-      replace(s.begin(), s.end(), ':', '_');
-      casadi_assert(s == ret.name_out(i),
-        "Inconsistent output name. Expected: " + str(s_out) + ", "
+      "(" + str(s_io) + "), got " + str(ret.n_out()) + ".");
+    for (size_t i = 0; i < s_out.size(); ++i) {
+      casadi_assert(s_io[i] == ret.name_out(i),
+        "Inconsistent output name. Expected: " + str(s_io) + ", "
         "got " + ret.name_out(i) + " for output " + str(i));
     }
 

@@ -83,14 +83,14 @@ namespace casadi {
     virtual void finalize() {}
 
     /** \brief Evaluate numerically, using temporary matrices and work vectors
-     * 
+     *
      * This signature is not thread-safe.
      * For guaranteed thread-safety, use `eval_buffer`
      */
     virtual std::vector<DM> eval(const std::vector<DM>& arg) const;
 
-    /** \brief A copy-free low level interface 
-     * 
+    /** \brief A copy-free low level interface
+     *
      * In Python, you will be passed two tuples of memoryview objects
     */
     virtual int eval_buffer(const double **arg, const std::vector<casadi_int>& sizes_arg,
@@ -117,12 +117,12 @@ namespace casadi {
      */
     virtual Sparsity get_sparsity_out(casadi_int i);
 
-    /** \brief Get the sparsity of an input
+    /** \brief Get the name of an input
      * This function is called during construction.
      */
     virtual std::string get_name_in(casadi_int i);
 
-    /** \brief Get the sparsity of an output
+    /** \brief Get the name of an output
      * This function is called during construction.
      */
     virtual std::string get_name_out(casadi_int i);
@@ -168,8 +168,9 @@ namespace casadi {
     ///@{
     /** \brief Return sparsity of Jacobian of all input elements
      * with respect to all output elements */
-    virtual bool has_jacobian_sparsity() const { return false; }
-    virtual Sparsity get_jacobian_sparsity() const { return Sparsity(); }
+    virtual bool has_jac_sparsity(casadi_int oind, casadi_int iind) const { return false; }
+    virtual Sparsity get_jac_sparsity(casadi_int oind, casadi_int iind, bool symmetric) const {
+      return Sparsity(); }
     ///@}
   };
 

@@ -27,7 +27,6 @@
 #include "sparsity_internal.hpp"
 #include "im.hpp"
 #include "casadi_misc.hpp"
-#include "sparse_storage_impl.hpp"
 #include "serializing_stream.hpp"
 #include <climits>
 
@@ -38,9 +37,6 @@ throw CasadiException("Error in Sparsity::" FNAME " at " + CASADI_WHERE + ":\n"\
 using namespace std;
 
 namespace casadi {
-  // Instantiate templates
-  template class SparseStorage<Sparsity>;
-
   /// \cond INTERNAL
   // Singletons
   class EmptySparsity : public Sparsity {
@@ -298,12 +294,12 @@ namespace casadi {
     return (*this)->is_symmetric();
   }
 
-  bool Sparsity::is_tril() const {
-    return (*this)->is_tril();
+  bool Sparsity::is_tril(bool strictly) const {
+    return (*this)->is_tril(strictly);
   }
 
-  bool Sparsity::is_triu() const {
-    return (*this)->is_triu();
+  bool Sparsity::is_triu(bool strictly) const {
+    return (*this)->is_triu(strictly);
   }
 
   Sparsity Sparsity::sub(const std::vector<casadi_int>& rr, const Sparsity& sp,

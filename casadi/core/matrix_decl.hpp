@@ -121,11 +121,6 @@ namespace casadi {
     /** \brief Construct matrix with a given sparsity and nonzeros */
     Matrix(const Sparsity& sp, const Matrix<Scalar>& d);
 
-#ifdef WITH_DEPRECATED_FEATURES
-    /** \brief [DEPRECATED] Correctness is checked during construction */
-    void sanity_check(bool complete=false) const {}
-#endif // WITH_DEPRECATED_FEATURES
-
     /// This constructor enables implicit type conversion from a numeric type
     Matrix(double val);
 
@@ -312,6 +307,8 @@ namespace casadi {
     static casadi_int n_nodes(const Matrix<Scalar> &x);
     static std::string print_operator(const Matrix<Scalar> &x,
                                       const std::vector<std::string>& args);
+    static void extract(std::vector<Matrix<Scalar>>& ex, std::vector<Matrix<Scalar>>& v,
+      std::vector<Matrix<Scalar>>& vdef, const Dict& opts = Dict());
     static void shared(std::vector<Matrix<Scalar> >& ex,
                               std::vector<Matrix<Scalar> >& v,
                               std::vector<Matrix<Scalar> >& vdef,
@@ -1102,7 +1099,7 @@ namespace casadi {
     /** Export numerical matrix to file
     *
     * Supported formats:
-    * 
+    *
     * \verbatim
     *   - .mtx   Matrix Market (sparse)
     *   - .txt   Ascii full precision representation (sparse)
@@ -1112,7 +1109,7 @@ namespace casadi {
     *            Structural zeros represented by 00
     *            Does not scale well for large sparse matrices
     * \endverbatim
-    * 
+    *
     */
     void to_file(const std::string& filename, const std::string& format="") const;
 #ifndef SWIG

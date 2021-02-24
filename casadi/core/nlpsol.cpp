@@ -76,12 +76,15 @@ namespace casadi {
     // Options for the oracle
     Dict oracle_options;
     Dict::const_iterator it = opts.find("oracle_options");
-    if (it!=opts.end()) {
+    if (it != opts.end()) {
       // "oracle_options" has been set
       oracle_options = it->second;
-    } else if ((it=opts.find("verbose")) != opts.end()) {
-      // "oracle_options" has not been set, but "verbose" has
-      oracle_options["verbose"] = it->second;
+    } else {
+      // Propagate selected options from Nlpsol to oracle by default
+      for (const char* op : {"verbose", "regularity_check"})
+      if ((it = opts.find(op)) != opts.end()) {
+        oracle_options[op] = it->second;
+      }
     }
 
     // Create oracle
@@ -681,7 +684,7 @@ namespace casadi {
 
     // Generate KKT function
     Function ret = oracle_.factory("kkt", {"x", "p", "lam:f", "lam:g"},
-      {"jac:g:x", "sym:hess:gamma:x:x"}, {{"gamma", {"f", "g"}}});
+      {"jac:g:x", "hess:gamma:x:x"}, {{"gamma", {"f", "g"}}});
 
     // Cache and return
     kkt_ = ret;
@@ -956,6 +959,7 @@ namespace casadi {
       // Evaluate
       fcallback_(m->arg, m->res, m->iw, m->w, 0);
     } catch(KeyboardInterruptException& ex) {
+      (void)ex;  // unused
       throw;
     } catch(exception& ex) {
       print("WARNING: intermediate_callback error: %s\n", ex.what());

@@ -2272,7 +2272,7 @@ namespace std {
 %typemap(directorin, noblock=1, fragment="casadi_all") (const double** arg, const std::vector<casadi_int>& sizes_arg) (PyObject* my_tuple) {
   PyObject * arg_tuple = PyTuple_New($2.size());
   for (casadi_int i=0;i<$2.size();++i) {
-    
+
 #ifdef WITH_PYTHON3
     PyObject* buf = $1[i] ? PyMemoryView_FromMemory(reinterpret_cast<char*>(const_cast<double*>($1[i])), $2[i]*sizeof(double), PyBUF_READ) : SWIG_Py_Void();
 #else
@@ -3205,8 +3205,8 @@ DECL M casadi_tangent(const M &ex, const M &arg) {
   return tangent(ex, arg);
 }
 
-DECL M casadi_hessian(const M& ex, const M& arg, M& OUTPUT1) {
-  return hessian(ex, arg, OUTPUT1);
+DECL M casadi_hessian(const M& ex, const M& arg, M& OUTPUT1, const casadi::Dict& opts = casadi::Dict()) {
+  return hessian(ex, arg, OUTPUT1, opts);
 }
 
 DECL void casadi_quadratic_coeff(const M& ex, const M& arg, M& OUTPUT1, M& OUTPUT2, M& OUTPUT3, bool check=true) {
@@ -3283,14 +3283,25 @@ DECL void casadi_substitute_inplace(const std::vector< M >& v,
   return substitute_inplace(v, INOUT1, INOUT2, reverse);
 }
 
+DECL void casadi_extract(const std::vector< M >& ex,
+    std::vector< M >& OUTPUT1,
+    std::vector< M >& OUTPUT2,
+    std::vector< M >& OUTPUT3,
+    const Dict& opts = Dict()) {
+  OUTPUT1 = ex;
+  extract(OUTPUT1, OUTPUT2, OUTPUT3, opts);
+}
+
 DECL void casadi_shared(const std::vector< M >& ex,
                                std::vector< M >& OUTPUT1,
                                std::vector< M >& OUTPUT2,
                                std::vector< M >& OUTPUT3,
                                const std::string& v_prefix="v_",
                                const std::string& v_suffix="") {
-  shared(ex, OUTPUT1, OUTPUT2, OUTPUT3, v_prefix, v_suffix);
+  OUTPUT1 = ex;
+  shared(OUTPUT1, OUTPUT2, OUTPUT3, v_prefix, v_suffix);
 }
+
 DECL M casadi_blockcat(const std::vector< std::vector< M > > &v) {
  return blockcat(v);
 }
@@ -4281,7 +4292,6 @@ namespace casadi {
 %include <casadi/core/integration_tools.hpp>
 %include <casadi/core/nlp_tools.hpp>
 %include <casadi/core/nlp_builder.hpp>
-%include <casadi/core/variable.hpp>
 %include <casadi/core/dae_builder.hpp>
 %include <casadi/core/xml_file.hpp>
 

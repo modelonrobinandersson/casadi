@@ -302,17 +302,29 @@ namespace casadi {
 
   void Function::call(const vector<DM> &arg, vector<DM> &res,
                       bool always_inline, bool never_inline) const {
-    (*this)->call(arg, res, always_inline, never_inline);
+    try {
+      (*this)->call(arg, res, always_inline, never_inline);
+    } catch (exception& e) {
+      THROW_ERROR("call", e.what());
+    }
   }
 
   void Function::call(const vector<SX> &arg, vector<SX>& res,
                       bool always_inline, bool never_inline) const {
-    (*this)->call(arg, res, always_inline, never_inline);
+    try {
+      (*this)->call(arg, res, always_inline, never_inline);
+    } catch (exception& e) {
+      THROW_ERROR("call", e.what());
+    }
   }
 
   void Function::call(const vector<MX> &arg, vector<MX>& res,
                       bool always_inline, bool never_inline) const {
-    (*this)->call(arg, res, always_inline, never_inline);
+    try {
+      (*this)->call(arg, res, always_inline, never_inline);
+    } catch (exception& e) {
+      THROW_ERROR("call", e.what());
+    }
   }
 
   vector<const double*> Function::buf_in(Function::VecArg arg) const {
@@ -710,6 +722,8 @@ namespace casadi {
       const vector<double>& coeffs, const vector<casadi_int>& degree,
         casadi_int m, const Dict& opts) {
     try {
+      casadi_assert(degree.size()==knots.size(), "Degree list length (" + str(degree.size()) + ") "
+                  "must match knot list length (" + str(knots.size()) + ").");
       MX x = MX::sym("x", degree.size());
       std::vector<std::string> lookup_mode;
       Dict opts_remainder = extract_from_dict(opts, "lookup_mode", lookup_mode);
@@ -799,6 +813,7 @@ namespace casadi {
     return (*this)->uses_output();
   }
 
+#ifdef WITH_DEPRECATED_FEATURES
   Function Function::jacobian_old(casadi_int iind, casadi_int oind) const {
     // Redirect to factory class
     vector<string> s_in = name_in();
@@ -813,23 +828,25 @@ namespace casadi {
     vector<string> s_out = name_out();
     s_out.insert(s_out.begin(), "grad:" + name_out(oind) + ":" + name_in(iind));
     s_out.insert(s_out.begin(),
-                 "sym:hess:" + name_out(oind) + ":" + name_in(iind) + ":" + name_in(iind));
+                 "hess:" + name_out(oind) + ":" + name_in(iind) + ":" + name_in(iind));
     return factory(name() + "_hess", s_in, s_out);
   }
+
+  const Sparsity Function::
+  sparsity_jac(casadi_int iind, casadi_int oind, bool compact, bool symmetric) const {
+    try {
+      return (*this)->jac_sparsity(oind, iind, compact, symmetric);
+    } catch (exception& e) {
+      THROW_ERROR("sparsity_jac", e.what());
+    }
+  }
+#endif  // WITH_DEPRECATED_FEATURES
 
   Function Function::jacobian() const {
     try {
       return (*this)->jacobian();
     } catch (exception& e) {
       THROW_ERROR("jacobian", e.what());
-    }
-  }
-
-  Function Function::jac() const {
-    try {
-      return (*this)->jac();
-    } catch (exception& e) {
-      THROW_ERROR("jac", e.what());
     }
   }
 
@@ -841,12 +858,22 @@ namespace casadi {
     return (*this)->get_stats(memory(mem));
   }
 
-  const Sparsity Function::
-  sparsity_jac(casadi_int iind, casadi_int oind, bool compact, bool symmetric) const {
+  const std::vector<Sparsity>& Function::jac_sparsity(bool compact) const {
+    // Make sure all are calculated
+    for (casadi_int oind = 0; oind < n_out(); ++oind) {
+      for (casadi_int iind = 0; iind < n_in(); ++iind) {
+        (void)jac_sparsity(oind, iind, compact);
+      }
+    }
+    // Return reference to internal cache
+    return (*this)->jac_sparsity_[compact];
+  }
+
+  Sparsity Function::jac_sparsity(casadi_int oind, casadi_int iind, bool compact) const {
     try {
-      return (*this)->sparsity_jac(iind, oind, compact, symmetric);
+      return (*this)->jac_sparsity(oind, iind, compact, (*this)->jac_is_symm(oind, iind));
     } catch (exception& e) {
-      THROW_ERROR("sparsity_jac", e.what());
+      THROW_ERROR("jac_sparsity", e.what());
     }
   }
 
@@ -926,7 +953,7 @@ namespace casadi {
     try {
       return (*this)->is_diff_in_.at(ind);
     } catch (exception& e) {
-      THROW_ERROR("is_dif_in", e.what());
+      THROW_ERROR("is_diff_in", e.what());
     }
   }
 
@@ -934,7 +961,7 @@ namespace casadi {
     try {
       return (*this)->is_diff_out_.at(ind);
     } catch (exception& e) {
-      THROW_ERROR("is_dif_in", e.what());
+      THROW_ERROR("is_diff_out", e.what());
     }
   }
 
@@ -942,7 +969,7 @@ namespace casadi {
     try {
       return (*this)->is_diff_in_;
     } catch (exception& e) {
-      THROW_ERROR("is_dif_in", e.what());
+      THROW_ERROR("is_diff_in", e.what());
     }
   }
 
@@ -950,7 +977,7 @@ namespace casadi {
     try {
       return (*this)->is_diff_out_;
     } catch (exception& e) {
-      THROW_ERROR("is_dif_in", e.what());
+      THROW_ERROR("is_diff_out", e.what());
     }
   }
 
@@ -1303,17 +1330,29 @@ namespace casadi {
 
   void Function::call(const DMDict& arg, DMDict& res,
                       bool always_inline, bool never_inline) const {
-    return call_gen(arg, res, always_inline, never_inline);
+    try {
+      call_gen(arg, res, always_inline, never_inline);
+    } catch (exception& e) {
+      THROW_ERROR("call", e.what());
+    }
   }
 
   void Function::call(const SXDict& arg, SXDict& res,
                       bool always_inline, bool never_inline) const {
-    return call_gen(arg, res, always_inline, never_inline);
+    try {
+      call_gen(arg, res, always_inline, never_inline);
+    } catch (exception& e) {
+      THROW_ERROR("call", e.what());
+    }
   }
 
   void Function::call(const MXDict& arg, MXDict& res,
                       bool always_inline, bool never_inline) const {
-    return call_gen(arg, res, always_inline, never_inline);
+    try {
+      call_gen(arg, res, always_inline, never_inline);
+    } catch (exception& e) {
+      THROW_ERROR("call", e.what());
+    }
   }
 
   double Function::default_in(casadi_int ind) const {

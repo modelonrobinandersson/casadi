@@ -31,7 +31,6 @@
 #include <stack>
 #include "code_generator.hpp"
 #include "importer.hpp"
-#include "sparse_storage.hpp"
 #include "options.hpp"
 #include "shared_object_internal.hpp"
 #include "timing.hpp"
@@ -168,10 +167,6 @@ namespace casadi {
       return class_name();
     }
 
-  protected:
-    /** \brief Deserializing constructor */
-    explicit ProtoFunction(DeserializingStream& s);
-
     /// Name
     std::string name_;
 
@@ -184,6 +179,13 @@ namespace casadi {
     // Print timing statistics
     bool record_time_;
 
+    /// Errors are thrown when NaN is produced
+    bool regularity_check_;
+
+  protected:
+    /** \brief Deserializing constructor */
+    explicit ProtoFunction(DeserializingStream& s);
+
 #ifdef CASADI_WITH_THREAD
     /// Mutex for thread safety
     mutable std::mutex mtx_;
@@ -194,7 +196,7 @@ namespace casadi {
     mutable std::vector<void*> mem_;
 
     /// Unused memory objects
-    mutable std::stack<casadi_int> unused_;
+    mutable std::stack<int> unused_;
   };
 
   /** \brief Internal class for Function
@@ -310,7 +312,7 @@ namespace casadi {
 
     ///@{
     /** Helper function
-     * 
+     *
      * \param npar[in] normal usage: 1, disallow pararallel calls: -1
      * \param npar[out] required number of parallel calls (or -1)
      */
@@ -319,7 +321,7 @@ namespace casadi {
 
     ///@{
     /** \brief Check if input arguments have correct length and dimensions
-     * 
+     *
      * Raises errors.
      *
      * \param npar[in] normal usage: 1, disallow pararallel calls: -1
@@ -331,9 +333,9 @@ namespace casadi {
 
     ///@{
     /** \brief Check if output arguments have correct length and dimensions
-     * 
+     *
      * Raises errors.
-     * 
+     *
      * \param npar[in] normal usage: 1, disallow pararallel calls: -1
      * \param[out] npar: max number of horizontal repetitions across all arguments  (or -1)
      */
@@ -342,9 +344,9 @@ namespace casadi {
     ///@}
 
     /** \brief Check if input arguments that needs to be replaced
-     * 
+     *
      * Raises errors
-     * 
+     *
      * \param npar[in] normal usage: 1, disallow pararallel calls: -1
      * \param[out] npar: max number of horizontal repetitions across all arguments  (or -1)
      */
@@ -352,9 +354,9 @@ namespace casadi {
     matching_arg(const std::vector<M>& arg, casadi_int& npar) const;
 
     /** \brief Check if output arguments that needs to be replaced
-     * 
+     *
      * Raises errors
-     * 
+     *
      * \param npar[in] normal usage: 1, disallow pararallel calls: -1
      * \param[out] npar: max number of horizontal repetitions across all arguments  (or -1)
      */
@@ -366,12 +368,12 @@ namespace casadi {
     template<typename M> std::vector<M>
     replace_arg(const std::vector<M>& arg, casadi_int npar) const;
 
-    /** \brief Project sparsities 
+    /** \brief Project sparsities
      * */
     template<typename M> std::vector<M>
     project_arg(const std::vector<M>& arg, casadi_int npar) const;
 
-    /** \brief Project sparsities 
+    /** \brief Project sparsities
      * */
     template<typename M> std::vector<M>
     project_res(const std::vector<M>& arg, casadi_int npar) const;
@@ -407,9 +409,6 @@ namespace casadi {
     std::vector<DM> nz_in(const std::vector<double>& arg) const;
     std::vector<DM> nz_out(const std::vector<double>& res) const;
     ///@}
-
-    virtual bool is_diff_out(casadi_int i) { return true; }
-    virtual bool is_diff_in(casadi_int i) { return true; }
 
     ///@{
     /** \brief Forward mode AD, virtual functions overloaded in derived classes */
@@ -452,13 +451,11 @@ namespace casadi {
     ///@}
 
     ///@{
-    /** \brief Return Jacobian of all input elements with respect to all output elements */
-    Function jac() const;
-    virtual bool has_jac() const { return false;}
-    virtual Function get_jac(const std::string& name,
-                             const std::vector<std::string>& inames,
-                             const std::vector<std::string>& onames,
-                             const Dict& opts) const;
+    /** \brief Get Jacobian sparsity */
+    /// Get, if necessary generate, the sparsity of a Jacobian block
+    Sparsity& jac_sparsity(casadi_int oind, casadi_int iind, bool compact, bool symmetric) const;
+    virtual bool has_jac_sparsity(casadi_int oind, casadi_int iind) const { return false;}
+    virtual Sparsity get_jac_sparsity(casadi_int oind, casadi_int iind, bool symmetric) const;
     ///@}
 
     ///@{
@@ -505,13 +502,6 @@ namespace casadi {
     /** \brief  Weighting factor for chosing forward/reverse mode,
         sparsity propagation */
     virtual double sp_weight() const;
-
-    ///@{
-    /** \brief Get Jacobian sparsity */
-    Sparsity jacobian_sparsity() const;
-    virtual bool has_jacobian_sparsity() const { return false;}
-    virtual Sparsity get_jacobian_sparsity() const { return Sparsity(); }
-    ///@}
 
     ///@{
     /** \brief Get function input(s) and output(s)  */
@@ -704,27 +694,26 @@ namespace casadi {
     /** \brief Are all inputs and outputs scalar */
     bool all_scalar() const;
 
-    /// Generate the sparsity of a Jacobian block
-    virtual Sparsity getJacSparsity(casadi_int iind, casadi_int oind, bool symmetric) const;
+    /// Is a Jacobian block known to be symmetric a priori?
+    virtual bool jac_is_symm(casadi_int oind, casadi_int iind) const;
 
-    /// Get the sparsity pattern, forward mode
+    /// Convert to compact Jacobian sparsity pattern
+    Sparsity to_compact(casadi_int oind, casadi_int iind, const Sparsity& sp) const;
+
+    /// Convert from compact Jacobian sparsity pattern
+    Sparsity from_compact(casadi_int oind, casadi_int iind, const Sparsity& sp) const;
+
+    /// Get the sparsity pattern via sparsity seed propagation
     template<bool fwd>
-    Sparsity getJacSparsityGen(casadi_int iind, casadi_int oind, bool symmetric,
-                                casadi_int gr_i=1, casadi_int gr_o=1) const;
+    Sparsity get_jac_sparsity_gen(casadi_int oind, casadi_int iind) const;
 
-    /// A flavor of getJacSparsity that does hierarchical block structure recognition
-    Sparsity getJacSparsityHierarchical(casadi_int iind, casadi_int oind) const;
+    /// A flavor of get_jac_sparsity_gen that does hierarchical block structure recognition
+    Sparsity get_jac_sparsity_hierarchical(casadi_int oind, casadi_int iind) const;
 
-    /** A flavor of getJacSparsity that does hierarchical block
+    /** A flavor of get_jac_sparsity_gen that does hierarchical block
     * structure recognition for symmetric Jacobians
     */
-    Sparsity getJacSparsityHierarchicalSymm(casadi_int iind, casadi_int oind) const;
-
-    /// Get, if necessary generate, the sparsity of a Jacobian block
-    Sparsity& sparsity_jac(casadi_int iind, casadi_int oind, bool compact, bool symmetric) const;
-
-    /// Filter out nonzeros in the full sparsity jacobian according to is_diff_in/out
-    Sparsity jacobian_sparsity_filter(const Sparsity& sp) const;
+    Sparsity get_jac_sparsity_hierarchical_symm(casadi_int oind, casadi_int iind) const;
 
     /// Get a vector of symbolic variables corresponding to the outputs
     virtual std::vector<MX> symbolic_output(const std::vector<MX>& arg) const;
@@ -772,6 +761,12 @@ namespace casadi {
 
     /** \brief Get sparsity of a given output */
     virtual Sparsity get_sparsity_out(casadi_int i);
+
+    /** \brief Which inputs are differentiable */
+    virtual bool get_diff_in(casadi_int i) { return true; }
+
+    /** \brief Which outputs are differentiable */
+    virtual bool get_diff_out(casadi_int i) { return true; }
 
     /** \brief Get input scheme index by name */
     casadi_int index_in(const std::string &name) const {
@@ -906,14 +901,8 @@ namespace casadi {
     /// Function cache
     mutable std::map<std::string, WeakRef> cache_;
 
-    /// Cache for full Jacobian
-    mutable WeakRef jacobian_;
-
     /// Cache for sparsities of the Jacobian blocks
-    mutable SparseStorage<Sparsity> jac_sparsity_, jac_sparsity_compact_;
-
-    /// Cache for full Jacobian sparsity
-    mutable Sparsity jacobian_sparsity_;
+    mutable std::vector<Sparsity> jac_sparsity_[2];
 
     /// If the function is the derivative of another function
     Function derivative_of_;
@@ -938,9 +927,6 @@ namespace casadi {
 
     /// Maximum number of sensitivity directions
     casadi_int max_num_dir_;
-
-    /// Errors are thrown when NaN is produced
-    bool regularity_check_;
 
     /// Errors are thrown if numerical values of inputs look bad
     bool inputs_check_;
@@ -1016,7 +1002,7 @@ namespace casadi {
 
   protected:
     /** \brief Populate jac_sparsity_ and jac_sparsity_compact_ during initialization */
-    void set_jac_sparsity(const Sparsity& sp);
+    void set_jac_sparsity(casadi_int oind, casadi_int iind, const Sparsity& sp);
 
   private:
     // @{

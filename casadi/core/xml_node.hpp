@@ -38,32 +38,52 @@ namespace casadi {
 
   class CASADI_EXPORT XmlNode {
   public:
+    /** \brief Constructor */
     XmlNode();
+
+    /** \brief Destructor */
     ~XmlNode();
 
+    /** \brief  Check if an attribute is present */
+    bool has_attribute(const std::string& att_name) const;
+
     /** \brief  Add an attribute */
-    void set_attribute(const std::string& attribute_name, const std::string& attribute);
+    void set_attribute(const std::string& att_name, const std::string& att);
 
     /** \brief  Get an attribute by its name */
-    std::string getAttribute(const std::string& attribute_name) const {
+    std::string get_attribute(const std::string& att_name) const {
       std::string ret;
-      readAttribute(attribute_name, ret, true);
+      (void)read_attribute(att_name, ret, true);
       return ret;
+    }
+
+    /** \brief  Get an attribute by its name, default value if not found */
+    std::string get_attribute(const std::string& att_name, const std::string& def_att) const {
+      std::string att;
+      if (read_attribute(att_name, att, false)) {
+        // Atribute found
+        return att;
+      } else {
+        // No such attribute, return default value
+        return def_att;
+      }
     }
 
     /** \brief  Read the value of an attribute */
     template<typename T>
-      void readAttribute(const std::string& attribute_name, T& val,
-                         bool assert_existance=true) const {
+    bool read_attribute(const std::string& attribute_name, T& val,
+        bool assert_existance=true) const {
       // find the attribute
       std::map<std::string, std::string>::const_iterator it = attributes_.find(attribute_name);
 
       // check if the attribute exists
       if (it == attributes_.end()) {
         casadi_assert(!assert_existance,
-                              "Error in XmlNode::readAttribute: could not find " + attribute_name);
+          "Error in XmlNode::read_attribute: could not find " + attribute_name);
+        return false;
       } else {
         readString(it->second, val);
+        return true;
       }
     }
 
@@ -80,10 +100,7 @@ namespace casadi {
     XmlNode& operator[](const std::string& childname);
 
     /** \brief  Check if a child is present */
-    bool hasChild(const std::string& childname) const;
-
-    /** \brief  Check if an attribute is present */
-    bool hasAttribute(const std::string& attribute_name) const;
+    bool has_child(const std::string& childname) const;
 
     /** \brief  Get the number of children */
     casadi_int size() const;
@@ -115,6 +132,9 @@ namespace casadi {
 
     /** \brief  Read the double value of a string */
     static void readString(const std::string& str, double& val);
+
+    /** \brief  Read a vector of integer values of a string */
+    static void readString(const std::string& str, std::vector<casadi_int>& val);
 
     CASADI_EXPORT friend std::ostream& operator<<(std::ostream &stream,
                                                        const XmlNode& node);

@@ -27,9 +27,11 @@ set(RUNTIME_SRC
   casadi_vfmin.hpp
   casadi_vfmax.hpp
   casadi_mv.hpp
+  casadi_trilsolve.hpp
+  casadi_triusolve.hpp
   casadi_mv_dense.hpp
   casadi_nd_boor_eval.hpp
-  casadi_nd_boor_dual_eval.hpp  
+  casadi_nd_boor_dual_eval.hpp
   casadi_norm_1.hpp
   casadi_norm_2.hpp
   casadi_norm_inf.hpp
@@ -47,15 +49,17 @@ set(RUNTIME_SRC
   casadi_ldl.hpp
   casadi_qr.hpp
   casadi_qp.hpp
+  casadi_kkt.hpp
+  casadi_ipqp.hpp
   casadi_nlp.hpp
   casadi_sqpmethod.hpp
   casadi_bfgs.hpp
   casadi_regularize.hpp
   casadi_newton.hpp
-  casadi_bound_consistency.hpp 
-  casadi_lsqr.hpp 
-  casadi_cache.hpp 
-  casadi_convexify.hpp 
+  casadi_bound_consistency.hpp
+  casadi_lsqr.hpp
+  casadi_cache.hpp
+  casadi_convexify.hpp
 )
 set(CASADI_RUNTIME_SRC "${RUNTIME_SRC}" PARENT_SCOPE)
 
