@@ -725,24 +725,21 @@ namespace casadi {
       return MatType::print_operator(xb, args);
     }
 
-    /** \brief Extract shared subexpressions from an set of expressions */
-    inline friend void shared(std::vector<MatType>& ex,
-                                     std::vector<MatType>& v,
-                                     std::vector<MatType>& vdef,
-                                     const std::string& v_prefix="v_",
-                                     const std::string& v_suffix="") {
-      MatType::shared(ex, v, vdef, v_prefix, v_suffix);
+    /** \brief Introduce intermediate variables for selected nodes in a graph */
+    inline friend void extract(std::vector<MatType>& ex,
+        std::vector<MatType>& v,
+        std::vector<MatType>& vdef,
+        const Dict& opts = Dict()) {
+      MatType::extract(ex, v, vdef, opts);
     }
 
     /** \brief Extract shared subexpressions from an set of expressions */
-    inline friend void shared(const std::vector<MatType>& ex,
-                                     std::vector<MatType>& ex_output,
-                                     std::vector<MatType>& v,
-                                     std::vector<MatType>& vdef,
-                                     const std::string& v_prefix="v_",
-                                     const std::string& v_suffix="") {
-      ex_output = ex;
-      shared(ex_output, v, vdef, v_prefix, v_suffix);
+    inline friend void shared(std::vector<MatType>& ex,
+        std::vector<MatType>& v,
+        std::vector<MatType>& vdef,
+        const std::string& v_prefix="v_",
+        const std::string& v_suffix="") {
+      return MatType::shared(ex, v, vdef, v_prefix, v_suffix);
     }
 
     /** \brief Given a repeated matrix, computes the sum of repeated parts

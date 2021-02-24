@@ -576,9 +576,6 @@ namespace casadi {
     }
   }
 
-  MX::MX(const MX& x) : SharedObject(x) {
-  }
-
   const Sparsity& MX::sparsity() const {
     return (*this)->sparsity();
   }
@@ -1517,26 +1514,42 @@ namespace casadi {
 
   }
 
-  void MX::shared(std::vector<MX>& ex, std::vector<MX>& v, std::vector<MX>& vdef,
-                         const std::string& v_prefix, const std::string& v_suffix) {
+  void MX::extract(std::vector<MX>& ex, std::vector<MX>& v,
+      std::vector<MX>& vdef, const Dict& opts) {
     try {
+      // Read options
+      std::string v_prefix = "v_", v_suffix = "";
+      bool lift_shared = true, lift_calls = false;
+      casadi_int v_ind = 0;
+      for (auto&& op : opts) {
+        if (op.first == "prefix") {
+          v_prefix = string(op.second);
+        } else if (op.first == "suffix") {
+          v_suffix = string(op.second);
+        } else if (op.first == "lift_shared") {
+          lift_shared = op.second;
+        } else if (op.first == "lift_calls") {
+          lift_calls = op.second;
+        } else if (op.first == "offset") {
+          v_ind = op.second;
+        } else {
+          casadi_error("No such option: " + string(op.first));
+        }
+      }
+      // Partially implemented
+      casadi_assert(lift_shared, "Not implemented");
       // Sort the expression
       Function f("tmp", vector<MX>{}, ex);
       auto *ff = f.get<MXFunction>();
-
       // Get references to the internal data structures
       const vector<MXAlgEl>& algorithm = ff->algorithm_;
       vector<MX> work(ff->workloc_.size()-1);
-
       // Count how many times an expression has been used
       vector<casadi_int> usecount(work.size(), 0);
-
       // Remember the origin of every calculation
       vector<pair<casadi_int, casadi_int> > origin(work.size(), make_pair(-1, -1));
-
       // Which evaluations to replace
       vector<pair<casadi_int, casadi_int> > replace;
-
       // Evaluate the algorithm to identify which evaluations to replace
       casadi_int k=0;
       for (auto it=algorithm.begin(); it<algorithm.end(); ++it, ++k) {
@@ -1546,16 +1559,16 @@ namespace casadi {
         case OP_PARAMETER:
           break;
         default: // Unary operation, binary operation or output
+          // Lift shared
           for (casadi_int c=0; c<it->arg.size(); ++c) {
-            if (usecount[it->arg[c]]==0) {
-              usecount[it->arg[c]]=1;
-            } else if (usecount[it->arg[c]]==1) {
-              replace.push_back(origin[it->arg[c]]);
-              usecount[it->arg[c]]=-1; // Extracted, do not extract again
+            if (usecount.at(it->arg[c]) == 0) {
+              usecount.at(it->arg[c]) = 1;
+            } else if (usecount.at(it->arg[c]) == 1) {
+              replace.push_back(origin.at(it->arg[c]));
+              usecount.at(it->arg[c]) = -1; // Extracted, do not extract again
             }
           }
         }
-
         // Perform the operation
         switch (it->op) {
         case OP_OUTPUT:
@@ -1575,26 +1588,20 @@ namespace casadi {
           break;
         }
       }
-
       // New variables and definitions
       v.clear();
       v.reserve(replace.size());
       vdef.clear();
       vdef.reserve(replace.size());
-
       // Quick return
       if (replace.empty()) return;
-
       // Sort the elements to be replaced in the order of appearence in the algorithm
       sort(replace.begin(), replace.end());
       vector<pair<casadi_int, casadi_int> >::const_iterator replace_it=replace.begin();
-
       // Name of intermediate variables
       stringstream v_name;
-
       // Arguments for calling the atomic operations
       vector<MX> oarg, ores;
-
       // Evaluate the algorithm
       k=0;
       for (auto it=algorithm.begin(); it<algorithm.end(); ++it, ++k) {
@@ -1614,43 +1621,60 @@ namespace casadi {
             for (casadi_int i=0; i<oarg.size(); ++i) {
               casadi_int el = it->arg[i];
               oarg[i] = el<0 ? MX(it->data->dep(i).size()) : work.at(el);
+              // Lift call arguments (unless symbolic primitive or constant)
+              if (lift_calls && it->op == OP_CALL && !oarg[i].is_symbolic()
+                  && !oarg[i].is_constant()) {
+                // Store the result
+                vdef.push_back(oarg[i]);
+                // Create a new variable
+                v_name.str(string());
+                v_name << v_prefix << (v_ind++) << v_suffix;
+                v.push_back(MX::sym(v_name.str()));
+                // Use in calculations
+                oarg[i] = v.back();
+              }
             }
-
             // Perform the operation
             ores.resize(it->res.size());
             it->data->eval_mx(oarg, ores);
-
             // Get the result
             for (casadi_int i=0; i<ores.size(); ++i) {
               casadi_int el = it->res[i];
               if (el>=0) work.at(el) = ores[i];
             }
-
             // Possibly replace results with new variables
             for (casadi_int c=0; c<it->res.size(); ++c) {
               casadi_int ind = it->res[c];
-              if (ind>=0 && replace_it->first==k && replace_it->second==c) {
+              if (ind < 0) continue;
+              bool replace_shared = replace_it != replace.end() &&
+                replace_it->first==k && replace_it->second==c;
+              bool replace_call = lift_calls && it->op == OP_CALL;
+              if (replace_shared || replace_call) {
                 // Store the result
                 vdef.push_back(work[ind]);
-
                 // Create a new variable
                 v_name.str(string());
-                v_name << v_prefix << v.size() << v_suffix;
+                v_name << v_prefix << (v_ind++) << v_suffix;
                 v.push_back(MX::sym(v_name.str()));
-
                 // Use in calculations
                 work[ind] = v.back();
-
                 // Go to the next element to be replaced
-                replace_it++;
+                if (replace_shared) replace_it++;
               }
             }
           }
         }
       }
     } catch (std::exception& e) {
-      CASADI_THROW_ERROR("shared", e.what());
+      CASADI_THROW_ERROR("extract", e.what());
     }
+  }
+
+  void MX::shared(std::vector<MX>& ex, std::vector<MX>& v, std::vector<MX>& vdef,
+      const std::string& v_prefix, const std::string& v_suffix) {
+    // Call new, more generic function
+    return extract(ex, v, vdef, Dict{{"lift_shared", true}, {"lift_calls", false},
+      {"prefix", v_prefix}, {"suffix", v_suffix}});
   }
 
   MX MX::jacobian(const MX &f, const MX &x, const Dict& opts) {
@@ -1658,7 +1682,7 @@ namespace casadi {
       Dict h_opts;
       Dict opts_remainder = extract_from_dict(opts, "helper_options", h_opts);
       Function h("helper_jacobian_MX", {x}, {f}, h_opts);
-      return h.get<MXFunction>()->jac(0, 0, opts_remainder);
+      return h.get<MXFunction>()->jac(opts_remainder).at(0);
     } catch (std::exception& e) {
       CASADI_THROW_ERROR("jacobian", e.what());
     }

@@ -3283,14 +3283,25 @@ DECL void casadi_substitute_inplace(const std::vector< M >& v,
   return substitute_inplace(v, INOUT1, INOUT2, reverse);
 }
 
+DECL void casadi_extract(const std::vector< M >& ex,
+    std::vector< M >& OUTPUT1,
+    std::vector< M >& OUTPUT2,
+    std::vector< M >& OUTPUT3,
+    const Dict& opts = Dict()) {
+  OUTPUT1 = ex;
+  extract(OUTPUT1, OUTPUT2, OUTPUT3, opts);
+}
+
 DECL void casadi_shared(const std::vector< M >& ex,
                                std::vector< M >& OUTPUT1,
                                std::vector< M >& OUTPUT2,
                                std::vector< M >& OUTPUT3,
                                const std::string& v_prefix="v_",
                                const std::string& v_suffix="") {
-  shared(ex, OUTPUT1, OUTPUT2, OUTPUT3, v_prefix, v_suffix);
+  OUTPUT1 = ex;
+  shared(OUTPUT1, OUTPUT2, OUTPUT3, v_prefix, v_suffix);
 }
+
 DECL M casadi_blockcat(const std::vector< std::vector< M > > &v) {
  return blockcat(v);
 }
@@ -4281,7 +4292,6 @@ namespace casadi {
 %include <casadi/core/integration_tools.hpp>
 %include <casadi/core/nlp_tools.hpp>
 %include <casadi/core/nlp_builder.hpp>
-%include <casadi/core/variable.hpp>
 %include <casadi/core/dae_builder.hpp>
 %include <casadi/core/xml_file.hpp>
 

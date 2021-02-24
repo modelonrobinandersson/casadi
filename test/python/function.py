@@ -110,7 +110,7 @@ class Functiontests(casadiTestCase):
 
     f = Function("f", [x,y],[x**2,y,x*y[0]])
 
-    g = f.jacobian_old(0, 0)
+    g = jacobian_old(f, 0, 0)
 
     self.assertEqual(g.n_in(),f.n_in())
     self.assertEqual(g.n_out(),f.n_out()+1)
@@ -231,7 +231,7 @@ class Functiontests(casadiTestCase):
       x = SX.sym("x",sp.size2())
       self.assertTrue(sp==sp.T)
       f = Function("f", [x],[mtimes([x.T,DM.ones(sp),x])])
-      J = f.hessian_old(0, 0)
+      J = hessian_old(f, 0, 0)
       sp2 = J.sparsity_out(0)
       self.checkarray(sp.row(),sp2.row())
       self.checkarray(sp.colind(),sp2.colind())
@@ -345,7 +345,7 @@ class Functiontests(casadiTestCase):
 
     Pf = Function("P", [X, P], [mtimes(M_X,P)])
 
-    P_P = Pf.jacobian_old(1, 0)
+    P_P = jacobian_old(Pf, 1, 0)
 
     self.assertFalse("derivative" in str(P_P))
 
@@ -386,11 +386,11 @@ class Functiontests(casadiTestCase):
       for i in range(2):
         f = XFunction("nlp",[V],[vertcat(*g)],{"ad_weight_sp":i})
 
-        assert f.sparsity_jac(0, 0).nnz()==162
+        assert f.jac_sparsity(0, 0).nnz()==162
 
         f2 = XFunction("nlp",[V],[vertcat(*g2)],{"ad_weight_sp":i})
 
-        assert f2.sparsity_jac(0, 0).nnz()==162
+        assert f2.jac_sparsity(0, 0).nnz()==162
 
   def test_callback(self):
     class mycallback(Callback):
@@ -1152,8 +1152,8 @@ class Functiontests(casadiTestCase):
     d_flat = data.ravel(order='F')
 
     LUT = casadi.interpolant('name','bspline',d_knots,d_flat)
-    LUTJ = LUT.jacobian_old(0, 0)
-    LUTH = LUT.hessian_old(0, 0)
+    LUTJ = jacobian_old(LUT, 0, 0)
+    LUTH = hessian_old(LUT, 0, 0)
 
     self.check_codegen(LUT, [vertcat(0.2,0.3)])
     self.check_serialize(LUT, [vertcat(0.2,0.3)])
@@ -1198,8 +1198,8 @@ class Functiontests(casadiTestCase):
 
     LUT = casadi.interpolant('name','bspline',d_knots,d_flat)
     self.check_codegen(LUT, [0.2])
-    LUTJ = LUT.jacobian_old(0, 0)
-    LUTH = LUT.hessian_old(0, 0)
+    LUTJ = jacobian_old(LUT, 0, 0)
+    LUTH = hessian_old(LUT, 0, 0)
 
     interp = scipy.interpolate.InterpolatedUnivariateSpline(d_knots[0], data)
     for x in [0,0.01,0.1,0.2,0.9,0.99,1]:
@@ -1257,7 +1257,7 @@ class Functiontests(casadiTestCase):
           x = SX.sym("x")
           y = SX.sym("y")
           out_g = SX.sym('out_g', Sparsity(1,1))
-          J = Function(name, [x,y,out_g],[horzcat(cos(x+3*y),3*cos(x+3*y))], inames, onames, opts)
+          J = Function(name, [x,y, out_g], [cos(x+3*y), 3*cos(x+3*y)], inames, onames, opts)
           return J
 
     f = Fun()
@@ -1341,7 +1341,7 @@ class Functiontests(casadiTestCase):
         f.gradient()
 
       with self.assertRaises(Exception):
-        f.jacobian_old(0, 0)
+        jacobian_old(f, 0, 0)
 
       with self.assertRaises(Exception):
         f.forward(1)
@@ -1543,7 +1543,7 @@ class Functiontests(casadiTestCase):
     x = MX.sym("x",2)
 
     h = 1e-7
-    for with_jacobian_sparsity in [True, False]:
+    for with_jac_sparsity in [True, False]:
 
       calls = []
 
@@ -1565,9 +1565,11 @@ class Functiontests(casadiTestCase):
           def has_forward(self,nfwd): return False
           def has_reverse(self,nadj): return False
 
-          def has_jacobian_sparsity(self): return with_jacobian_sparsity
+          def has_jac_sparsity(self,oind,iind): return with_jac_sparsity
 
-          def get_jacobian_sparsity(self):
+          def get_jac_sparsity(self,oind,iind,symmetric):
+            assert(oind == 0)
+            assert(iind == 0)
             return Sparsity.diag(2)
 
       f = Fun()
@@ -1579,7 +1581,7 @@ class Functiontests(casadiTestCase):
        J = F([5,7])
       calls = hcat(calls)
       J_ref = DM([[5*2,0],[0,7*2]])
-      if with_jacobian_sparsity:
+      if with_jac_sparsity:
         self.checkarray(calls,DM([[0,0],[1,1]]).T,digits=5)
         J_ref = sparsify(J_ref)
       else:
@@ -2156,13 +2158,11 @@ class Functiontests(casadiTestCase):
   def test_custom_jacobian(self):
     x = MX.sym("x")
     p = MX.sym("p")
+    J = Function("jac_Q", [x, p, MX(1,1), MX(1,1)], [x*pi, 1, 1, 1],
+        ['x', 'p', 'out_r', 'out_s'], ['jac_r_x', 'jac_r_p', 'jac_r_s', 'jac_r_s'])
 
-    n1 = MX.sym("n1")
-    n2 = MX.sym("n2")
-
-    J = Function("J",[x,p,n1,n2],[blockcat([[x*pi,1],[1,1]])])
-
-    f = Function('Q',[x,p],[x**2,2*x*p],{"custom_jacobian": J,"jac_penalty":0})
+    f = Function('Q', [x, p], [x**2, 2*x*p], ['x', 'p'], ['r', 's'],
+            dict(custom_jacobian = J, jac_penalty = 0))
 
     J = None
 

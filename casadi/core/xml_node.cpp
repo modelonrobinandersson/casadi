@@ -35,9 +35,8 @@ namespace casadi {
   XmlNode::~XmlNode() {
   }
 
-  bool XmlNode::hasAttribute(const string& attribute_name) const {
-    auto it = attributes_.find(attribute_name);
-    return it!=attributes_.end();
+  bool XmlNode::has_attribute(const string& att_name) const {
+    return attributes_.find(att_name) != attributes_.end();
   }
 
   XmlNode& XmlNode::operator[](casadi_int i) {
@@ -50,7 +49,7 @@ namespace casadi {
     return const_cast<XmlNode*>(this)->operator[](i); // NOLINT
   }
 
-  bool XmlNode::hasChild(const string& childname) const {
+  bool XmlNode::has_child(const string& childname) const {
     auto it = child_indices_.find(childname);
     return it!=child_indices_.end();
   }
@@ -144,6 +143,17 @@ namespace casadi {
   void XmlNode::readString(const std::string& str, double& val) {
     std::istringstream buffer(str);
     buffer >> val;
+  }
+
+  void XmlNode::readString(const std::string& str, std::vector<casadi_int>& val) {
+    val.clear();
+    std::istringstream buffer(str);
+    while (true) {
+      casadi_int v;
+      buffer >> v;
+      if (buffer.fail()) break;
+      val.push_back(v);
+    }
   }
 
 } // namespace casadi

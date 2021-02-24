@@ -602,8 +602,6 @@ template<typename T1>
 T1 casadi_ipqp_sigma(casadi_ipqp_data<T1>* d, T1 alpha) {
   // Local variables
   T1 sigma;
-  casadi_int k;
-  const casadi_ipqp_prob<T1>* p = d->prob;
   // Quick return if no inequalities
   if (d->n_con == 0) return 0;
   // Calculate projected mu (and save to sigma variable)
@@ -700,11 +698,11 @@ void casadi_ipqp_corrector(casadi_ipqp_data<T1>* d) {
     }
     // Mehrotra's heuristic as in in OOQP per communication with S. Wright
     if (flag & IPQP_PRIMAL) {
-      d->tau = (0.01 * mu_test / (dual_slack + max_tau * dual_slack)
+      d->tau = (0.01 * mu_test / (dual_slack + max_tau * dual_step)
         - primal_slack) / primal_step;
     } else {
       d->tau = (0.01 * mu_test / (primal_slack + max_tau * primal_step)
-        - dual_slack) / dual_slack;
+        - dual_slack) / dual_step;
     }
     d->tau = fmax(d->tau, 0.99 * max_tau);
   }
@@ -717,8 +715,6 @@ void casadi_ipqp_corrector(casadi_ipqp_data<T1>* d) {
 // SYMBOL "ipqp"
 template<typename T1>
 int casadi_ipqp(casadi_ipqp_data<T1>* d) {
-  // Local variables
-  const casadi_ipqp_prob<T1>* p = d->prob;
   switch (d->next) {
     case IPQP_RESET:
       casadi_ipqp_reset(d);
