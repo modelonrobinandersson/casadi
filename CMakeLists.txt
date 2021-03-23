@@ -3,8 +3,8 @@ project(casadi C CXX)
 
 set(CASADI_MAJOR_VERSION 3)
 set(CASADI_MINOR_VERSION 5)
-set(CASADI_PATCH_VERSION 4)
-set(CASADI_IS_RELEASE 0)
+set(CASADI_PATCH_VERSION 5)
+set(CASADI_IS_RELEASE 1)
 
 set(CASADI_VERSION ${CASADI_MAJOR_VERSION}.${CASADI_MINOR_VERSION}.${CASADI_PATCH_VERSION})
 if(NOT CASADI_IS_RELEASE)
@@ -19,6 +19,26 @@ set(PACKAGE_AUTHOR "Joel Andersson and Joris Gillis")
 set(PACKAGE_MAINTAINER "Joel Andersson and Joris Gillis")
 set(PACKAGE_URL "http://casadi.org")
 
+if(" ${CMAKE_C_FLAGS} " MATCHES " -m64 " AND CMAKE_HOST_WIN32)
+    add_definitions(-DMS_WIN64)
+    message(STATUS "Adding MS_WIN64 definition")
+endif()
+
+if(MSVC)
+    # Force linking with MD run-time library
+	set(replace_from "/MT")
+	set(replace_to "/MD")
+	foreach(flag_var
+		CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+		CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO
+		CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+		CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
+		if(${${flag_var}} MATCHES "${replace_from}")
+			string(REPLACE "${replace_from}" "${replace_to}" tmp "${${flag_var}}")
+			set(${flag_var} ${tmp} CACHE STRING "compiler flags" FORCE)
+		endif()
+	endforeach(flag_var)
+endif()
 ############################################################
 ####################### Policies ###########################
 ############################################################
@@ -212,7 +232,7 @@ endif()
 ############################################################
 ################# WITH_COMMON option #######################
 ############################################################
-option(WITH_COMMON "Build common, stable interfaces, if found" OFF)
+option(WITH_COMMON "Build common, stable interfaces, if found" ON)
 if(WITH_COMMON)
   # Look for LAPACK
   find_package(LAPACK QUIET)
