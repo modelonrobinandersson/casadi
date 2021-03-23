@@ -361,6 +361,15 @@ namespace casadi {
     /** \brief Print all information there is to know about a certain option */
     void print_option(const std::string &name, std::ostream &stream = casadi::uout()) const;
 
+    /** \brief Does a particular option exist */
+    bool has_option(const std::string &option_name) const;
+
+    /** \brief Change option after object creation for debugging
+      * This is only possible for a selected number of options that do not change the numerical
+      * results of the computation, e.g. to enable a more verbose output or saving to file.
+      */
+    void change_option(const std::string& option_name, const GenericType& option_value);
+
     /** \brief Do the derivative functions need nondifferentiated outputs? */
     bool uses_output() const;
 
@@ -964,14 +973,25 @@ namespace casadi {
     void* memory(int ind) const;
 #endif // SWIG
 
-    // Get a list of all functions
+    /** \brief Get a list of all functions */
     std::vector<std::string> get_function() const;
 
-    // Get a dependency function
+    /** \brief Get a dependency function */
     Function get_function(const std::string &name) const;
 
-    // Check if a particular dependency exists
+    /** \brief Check if a particular dependency exists */
     bool has_function(const std::string& fname) const;
+
+    /** \brief Get all functions embedded in the expression graphs
+      * \param[in] max_depth  Maximum depth - a negative number indicates no maximum
+      */
+    std::vector<Function> find(casadi_int max_depth = -1) const;
+
+    /** \brief  Get a specific function embedded in the expression graphs
+      * \param[in] max_depth  Maximum depth - a negative number indicates no maximum
+      * \param[in] name  Name of function needed
+      */
+    Function find(casadi_int max_depth, const std::string &name) const;
 
     /** Obtain information about function */
     Dict info() const;

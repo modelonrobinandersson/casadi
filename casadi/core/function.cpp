@@ -196,10 +196,10 @@ namespace casadi {
     vector<M> ex_in(name_in.size()), ex_out(name_out.size());
     for (auto&& i : dict) {
       vector<string>::const_iterator it;
-      if ((it=find(name_in.begin(), name_in.end(), i.first))!=name_in.end()) {
+      if ((it = std::find(name_in.begin(), name_in.end(), i.first))!=name_in.end()) {
         // Input expression
         ex_in[it-name_in.begin()] = i.second;
-      } else if ((it=find(name_out.begin(), name_out.end(), i.first))!=name_out.end()) {
+      } else if ((it = std::find(name_out.begin(), name_out.end(), i.first))!=name_out.end()) {
         // Output expression
         ex_out[it-name_out.begin()] = i.second;
       } else {
@@ -1065,6 +1065,27 @@ namespace casadi {
     (*this)->print_option(name, stream);
   }
 
+  bool Function::has_option(const std::string &option_name) const {
+    try {
+      return (*this)->has_option(option_name);
+    } catch (exception& e) {
+      THROW_ERROR("has_option", e.what());
+      return false;  // never reached
+    }
+  }
+
+  void Function::change_option(const std::string& option_name, const GenericType& option_value) {
+    try {
+      // Assert existance
+      if (!has_option(option_name))
+        casadi_error("Option '" + option_name + "' does not exist");
+      // Call internal class
+      (*this)->change_option(option_name, option_value);
+    } catch (exception& e) {
+      THROW_ERROR("change_option", e.what());
+    }
+  }
+
   std::vector<std::string> Function::get_free() const {
     return (*this)->get_free();
   }
@@ -1700,8 +1721,51 @@ namespace casadi {
   }
 
   bool Function::has_function(const std::string& fname) const {
-    return (*this)->has_function(fname);
+    try {
+      return (*this)->has_function(fname);
+    } catch (exception& e) {
+      THROW_ERROR("has_function", e.what());
+      return false;
+    }
   }
+
+  std::vector<Function> Function::find(casadi_int max_depth) const {
+    try {
+      // If negative, make largest positive number
+      if (max_depth < 0) max_depth = std::numeric_limits<casadi_int>::max();
+      // The internal routine uses a map to avoid duplicate functions
+      std::map<FunctionInternal*, Function> all_fun;
+      (*this)->find(all_fun, max_depth);
+      // Create return object
+      std::vector<Function> ret;
+      ret.reserve(all_fun.size());
+      for (auto&& e : all_fun) ret.push_back(e.second);
+      return ret;
+    } catch (exception& e) {
+      THROW_ERROR("find", e.what());
+      return {};
+    }
+  }
+
+  Function Function::find(casadi_int max_depth, const std::string &name) const {
+    try {
+      // If negative, make largest positive number
+      if (max_depth < 0) max_depth = std::numeric_limits<casadi_int>::max();
+      // The internal routine uses a map to avoid duplicate functions
+      std::map<FunctionInternal*, Function> all_fun;
+      (*this)->find(all_fun, max_depth);
+      // Search this map
+      for (auto&& e : all_fun) {
+        if (e.second.name() == name) return e.second;
+      }
+      // Not found
+      casadi_error("'" + name + "' not found");
+    } catch (exception& e) {
+      THROW_ERROR("find", e.what());
+      return Function();
+    }
+  }
+
 
   Function Function::oracle() const {
     try {

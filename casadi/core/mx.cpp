@@ -840,15 +840,19 @@ namespace casadi {
   }
 
   MX MX::project(const MX& x, const Sparsity& sp, bool intersect) {
-    if (x.is_empty() || (sp==x.sparsity())) {
-      return x;
-    } else {
-      casadi_assert(sp.size()==x.size(), "Dimension mismatch");
-      if (intersect) {
-        return x->get_project(sp.intersect(x.sparsity()));
+    try {
+      if (x.is_empty() || (sp==x.sparsity())) {
+        return x;
       } else {
-        return x->get_project(sp);
+        casadi_assert(sp.size()==x.size(), "Cannot project " + x.dim() + " to " + sp.dim());
+        if (intersect) {
+          return x->get_project(sp.intersect(x.sparsity()));
+        } else {
+          return x->get_project(sp);
+        }
       }
+    } catch (std::exception& e) {
+      CASADI_THROW_ERROR("project", e.what());
     }
   }
 
@@ -1302,7 +1306,7 @@ namespace casadi {
   }
 
   casadi_int MX::n_nodes(const MX& x) {
-    Function f("tmp", vector<MX>{}, {x});
+    Function f("tmp_n_nodes", vector<MX>{}, {x}, Dict{{"max_io", 0}});
     return f.n_nodes();
   }
 
@@ -1343,34 +1347,10 @@ namespace casadi {
     // quick return if nothing to replace
     if (v.empty()) return;
 
-    // If ex can be split up, call recursively
-    for (const MX& e1 : ex) {
-      if (e1.n_primitives()!=1) {
-        // Split ex into its primitives
-        vector<MX> ex1;
-        for (const MX& e : ex) {
-          vector<MX> prim = e.primitives();
-          ex1.insert(ex1.end(), prim.begin(), prim.end());
-        }
-
-        // Call recursively
-        substitute_inplace(v, vdef, ex1, reverse);
-
-        // Join primitives
-        vector<MX>::const_iterator start, stop=ex1.begin();
-        for (MX& e : ex) {
-          start = stop;
-          stop = start + e.n_primitives();
-          e = e.join_primitives(vector<MX>(start, stop));
-        }
-        return;
-      }
-    }
-
     // implemented in MXFunction
     std::vector<MX> f_out = vdef;
     f_out.insert(f_out.end(), ex.begin(), ex.end());
-    Function temp("temp", {v}, f_out);
+    Function temp("tmp_substitute_inplace", {v}, f_out, Dict{{"max_io", 0}});
     temp.get<MXFunction>()->substitute_inplace(vdef, ex);
   }
 
@@ -1394,7 +1374,7 @@ namespace casadi {
     if (all_equal) return ex;
 
     // Otherwise, evaluate symbolically
-    Function F("tmp", v, ex);
+    Function F("tmp_substitute", v, ex, Dict{{"max_io", 0}});
     std::vector<MX> ret;
     F.call(vdef, ret, true);
     return ret;
@@ -1413,7 +1393,7 @@ namespace casadi {
       + str(expr.size()) + " <-> " + str(exprs.size()) + ".");
 
     // Sort the expression
-    Function f("tmp", vector<MX>{}, ex);
+    Function f("tmp_graph_substitute", vector<MX>{}, ex, Dict{{"max_io", 0}});
     MXFunction *ff = f.get<MXFunction>();
 
     // Get references to the internal data structures
@@ -1536,10 +1516,8 @@ namespace casadi {
           casadi_error("No such option: " + string(op.first));
         }
       }
-      // Partially implemented
-      casadi_assert(lift_shared, "Not implemented");
       // Sort the expression
-      Function f("tmp", vector<MX>{}, ex);
+      Function f("tmp_extract", vector<MX>{}, ex, Dict{{"max_io", 0}});
       auto *ff = f.get<MXFunction>();
       // Get references to the internal data structures
       const vector<MXAlgEl>& algorithm = ff->algorithm_;
@@ -1559,13 +1537,24 @@ namespace casadi {
         case OP_PARAMETER:
           break;
         default: // Unary operation, binary operation or output
-          // Lift shared
           for (casadi_int c=0; c<it->arg.size(); ++c) {
-            if (usecount.at(it->arg[c]) == 0) {
-              usecount.at(it->arg[c]) = 1;
-            } else if (usecount.at(it->arg[c]) == 1) {
-              replace.push_back(origin.at(it->arg[c]));
-              usecount.at(it->arg[c]) = -1; // Extracted, do not extract again
+            // Identify nodes used more than once
+            if (lift_calls && it->op == OP_CALL) {
+              // If not already marked for replacing
+              if (usecount.at(it->arg[c]) >= 0) {
+                replace.push_back(origin.at(it->arg[c]));
+                usecount.at(it->arg[c]) = -1;  // Do not replace again
+              }
+            } else if (lift_shared && work[it->arg[c]].op() != OP_PARAMETER
+                && work[it->arg[c]].op() != OP_CONST) {
+              if (usecount.at(it->arg[c]) == 0) {
+                // First time node is used
+                usecount.at(it->arg[c]) = 1;
+              } else if (usecount.at(it->arg[c]) == 1) {
+                // Second time node is used
+                replace.push_back(origin.at(it->arg[c]));
+                usecount.at(it->arg[c]) = -1; // Do not replace again
+              }
             }
           }
         }
@@ -1574,15 +1563,20 @@ namespace casadi {
         case OP_OUTPUT:
           break;
         case OP_CONST:
-        case OP_PARAMETER:
-          usecount[it->res.front()] = -1; // Never extract since it is a primitive type
+          usecount[it->res.front()] = -1; // Never extract constants
           break;
         default:
           for (casadi_int c=0; c<it->res.size(); ++c) {
             if (it->res[c]>=0) {
               work[it->res[c]] = it->data.get_output(c);
-              usecount[it->res[c]] = 0; // Not (yet) extracted
               origin[it->res[c]] = make_pair(k, c);
+              if (lift_calls && it->op == OP_CALL) {
+                // If function call, replace right away
+                replace.push_back(origin.at(it->res[c]));
+                usecount.at(it->res[c]) = -1; // Do not replace again
+              } else {
+                usecount.at(it->res[c]) = 0; // Not (yet) extracted
+              }
             }
           }
           break;
@@ -1598,12 +1592,10 @@ namespace casadi {
       // Sort the elements to be replaced in the order of appearence in the algorithm
       sort(replace.begin(), replace.end());
       vector<pair<casadi_int, casadi_int> >::const_iterator replace_it=replace.begin();
-      // Name of intermediate variables
-      stringstream v_name;
       // Arguments for calling the atomic operations
       vector<MX> oarg, ores;
       // Evaluate the algorithm
-      k=0;
+      k = 0;
       for (auto it=algorithm.begin(); it<algorithm.end(); ++it, ++k) {
         switch (it->op) {
         case OP_OUTPUT:
@@ -1611,60 +1603,65 @@ namespace casadi {
           ex[it->data->ind()] = work[it->arg.front()];
           break;
         case OP_CONST:
-        case OP_PARAMETER:
           work[it->res.front()] = it->data;
           break;
         default:
           {
-            // Arguments of the operation
-            oarg.resize(it->arg.size());
-            for (casadi_int i=0; i<oarg.size(); ++i) {
-              casadi_int el = it->arg[i];
-              oarg[i] = el<0 ? MX(it->data->dep(i).size()) : work.at(el);
-              // Lift call arguments (unless symbolic primitive or constant)
-              if (lift_calls && it->op == OP_CALL && !oarg[i].is_symbolic()
-                  && !oarg[i].is_constant()) {
-                // Store the result
-                vdef.push_back(oarg[i]);
-                // Create a new variable
-                v_name.str(string());
-                v_name << v_prefix << (v_ind++) << v_suffix;
-                v.push_back(MX::sym(v_name.str()));
-                // Use in calculations
-                oarg[i] = v.back();
+            if (it->op == OP_PARAMETER) {
+              // Free parameter
+              work[it->res.front()] = it->data;
+            } else {
+              // Arguments of the operation
+              oarg.resize(it->arg.size());
+              for (casadi_int i=0; i<oarg.size(); ++i) {
+                casadi_int el = it->arg[i];
+                oarg[i] = el<0 ? MX(it->data->dep(i).size()) : work.at(el);
               }
-            }
-            // Perform the operation
-            ores.resize(it->res.size());
-            it->data->eval_mx(oarg, ores);
-            // Get the result
-            for (casadi_int i=0; i<ores.size(); ++i) {
-              casadi_int el = it->res[i];
-              if (el>=0) work.at(el) = ores[i];
+              // Perform the operation
+              ores.resize(it->res.size());
+              it->data->eval_mx(oarg, ores);
+              // Get the result
+              for (casadi_int i=0; i<ores.size(); ++i) {
+                casadi_int el = it->res[i];
+                if (el>=0) work.at(el) = ores[i];
+              }
             }
             // Possibly replace results with new variables
             for (casadi_int c=0; c<it->res.size(); ++c) {
+              // Output index
               casadi_int ind = it->res[c];
-              if (ind < 0) continue;
-              bool replace_shared = replace_it != replace.end() &&
-                replace_it->first==k && replace_it->second==c;
-              bool replace_call = lift_calls && it->op == OP_CALL;
-              if (replace_shared || replace_call) {
+              // In the list of nodes for replacing?
+              bool replace_node = replace_it != replace.end()
+                && replace_it->first==k && replace_it->second==c;
+              // Call node (introduce variable for outputs, even if unused)
+              bool output_node = lift_calls && it->op == OP_CALL;
+              // Skip if no reason to replace
+              if (!replace_node && !output_node) continue;
+              // Create a new variable
+              Sparsity v_sp = it->op == OP_PARAMETER ? it->data.sparsity() : ores.at(c).sparsity();
+              v.push_back(MX::sym(v_prefix + std::to_string(v_ind++) + v_suffix, v_sp));
+              // Add definition of new variable
+              if (ind >= 0) {
+                // Replace existing call
+                casadi_assert(replace_node, "Consistency check");
                 // Store the result
                 vdef.push_back(work[ind]);
-                // Create a new variable
-                v_name.str(string());
-                v_name << v_prefix << (v_ind++) << v_suffix;
-                v.push_back(MX::sym(v_name.str()));
                 // Use in calculations
                 work[ind] = v.back();
                 // Go to the next element to be replaced
-                if (replace_shared) replace_it++;
+                replace_it++;
+              } else {
+                // New node corresponding to an output
+                casadi_assert(output_node, "Consistency check");
+                // Store the result
+                vdef.push_back(ores.at(c));
               }
             }
           }
         }
       }
+      // Ensure all nodes have been replaced
+      casadi_assert(replace_it == replace.end(), "Consistency check failed");
     } catch (std::exception& e) {
       CASADI_THROW_ERROR("extract", e.what());
     }
@@ -1813,7 +1810,7 @@ namespace casadi {
     std::vector<MX> v = symvar(veccat(ret));
 
     // Construct an MXFunction with it
-    Function f("tmp", v, ret);
+    Function f("tmp_matrix_expand", v, ret, Dict{{"max_io", 0}});
 
     // Expand to SXFunction
     Function s = f.expand("expand_" + f.name(), options);
@@ -1869,7 +1866,7 @@ namespace casadi {
   }
 
   MX MX::solve(const MX& a, const MX& b, const std::string& lsolver, const Dict& dict) {
-    Linsol mysolver("tmp", lsolver, a.sparsity(), dict);
+    Linsol mysolver("tmp_solve", lsolver, a.sparsity(), dict);
     return mysolver.solve(a, b, false);
   }
 
@@ -1903,7 +1900,7 @@ namespace casadi {
     if (x.nnz()==0) return false;
 
     // Construct a temporary algorithm
-    Function temp("tmp", {arg}, {x});
+    Function temp("tmp_depends_on", {arg}, {x}, Dict{{"max_io", 0}});
 
     // Perform a single dependency sweep
     vector<bvec_t> t_in(arg.nnz(), 1), t_out(x.nnz());

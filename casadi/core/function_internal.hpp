@@ -105,6 +105,18 @@ namespace casadi {
     /// Reconstruct options dict
     virtual Dict generate_options(bool is_temp=false) const;
 
+    /** \brief Print list of options */
+    void print_options(std::ostream &stream) const;
+
+    /** \brief Print all information there is to know about a certain option */
+    void print_option(const std::string &name, std::ostream &stream) const;
+
+    /** \brief Does a particular option exist */
+    bool has_option(const std::string &option_name) const;
+
+    /** \brief Change option after object creation for debugging */
+    virtual void change_option(const std::string& option_name, const GenericType& option_value);
+
     /** \brief Initialize
         Initialize and make the object ready for setting arguments and evaluation.
         This method is typically called after setting options but before evaluating.
@@ -224,6 +236,9 @@ namespace casadi {
     /// Reconstruct options dict
     Dict generate_options(bool is_temp=false) const override;
 
+    /** \brief Change option after object creation for debugging */
+    void change_option(const std::string& option_name, const GenericType& option_value) override;
+
     /** \brief Initialize */
     void init(const Dict& opts) override;
 
@@ -248,6 +263,13 @@ namespace casadi {
 
     // Check if a particular dependency exists
     virtual bool has_function(const std::string& fname) const {return false;}
+
+    // Add embedded function to map, helper function
+    void add_embedded(std::map<FunctionInternal*, Function>& all_fun,
+      const Function& dep, casadi_int max_depth) const;
+
+    // Get all embedded functions, recursively
+    virtual void find(std::map<FunctionInternal*, Function>& all_fun, casadi_int max_depth) const {}
 
     /** \brief Which variables enter with some order
     * \param[in] s_in Input name
@@ -640,12 +662,6 @@ namespace casadi {
     /** \brief Print dimensions of inputs and outputs */
     void print_dimensions(std::ostream &stream) const;
 
-    /** \brief Print list of options */
-    void print_options(std::ostream &stream) const;
-
-    /** \brief Print all information there is to know about a certain option */
-    void print_option(const std::string &name, std::ostream &stream) const;
-
     /** \brief Print free variables */
     virtual std::vector<std::string> get_free() const;
 
@@ -943,6 +959,9 @@ namespace casadi {
     // Print input/output
     bool print_in_;
     bool print_out_;
+
+    // Warn when number of inputs or outputs exceed this value
+    casadi_int max_io_;
 
     // Dump input/output
     bool dump_in_, dump_out_, dump_;

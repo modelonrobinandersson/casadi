@@ -991,7 +991,7 @@ namespace casadi {
       static_cast<const DerivedType*>(this)->ad_forward(fseed, fsens);
     } else {
       // Need to create a temporary function
-      Function f("tmp", arg, res);
+      Function f("tmp_call_forward", arg, res);
       static_cast<DerivedType *>(f.get())->ad_forward(fseed, fsens);
     }
   }
@@ -1022,7 +1022,7 @@ namespace casadi {
       static_cast<const DerivedType*>(this)->ad_reverse(aseed, asens);
     } else {
       // Need to create a temporary function
-      Function f("tmp", arg, res);
+      Function f("tmp_call_reverse", arg, res);
       static_cast<DerivedType *>(f.get())->ad_reverse(aseed, asens);
     }
   }
@@ -1105,14 +1105,14 @@ namespace casadi {
     using namespace std;
 
     // Input arguments
-    auto it = find(name_in_.begin(), name_in_.end(), s_in);
+    auto it = std::find(name_in_.begin(), name_in_.end(), s_in);
     casadi_assert_dev(it!=name_in_.end());
     MatType arg = in_.at(it-name_in_.begin());
 
     // Output arguments
     vector<MatType> res;
     for (auto&& s : s_out) {
-      it = find(name_out_.begin(), name_out_.end(), s);
+      it = std::find(name_out_.begin(), name_out_.end(), s);
       casadi_assert_dev(it!=name_out_.end());
       res.push_back(out_.at(it-name_out_.begin()));
     }
@@ -1140,7 +1140,7 @@ namespace casadi {
       e = jtimes(e, var, v);
     }
 
-    Function f = Function("tmp", {var}, {e});
+    Function f = Function("tmp_which_depends", {var}, {e});
     // Propagate sparsities backwards seeding all outputs
     std::vector<bvec_t> seed(tr? f.nnz_in(0) : f.nnz_out(0), 1);
     std::vector<bvec_t> sens(tr? f.nnz_out(0) : f.nnz_in(0), 0);
