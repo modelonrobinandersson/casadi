@@ -393,6 +393,10 @@ namespace casadi {
       print_in_ = option_value;
     } else if (option_name == "print_out") {
       print_out_ = option_value;
+    } else if (option_name=="ad_weight") {
+      ad_weight_ = option_value;
+    } else if (option_name=="ad_weight_sp") {
+      ad_weight_sp_ = option_value;
     } else {
       // Option not found - continue to base classes
       ProtoFunction::change_option(option_name, option_value);
@@ -739,24 +743,38 @@ namespace casadi {
     return 0;
   }
 
+  void FunctionInternal::print_in(std::ostream &stream, const double** arg, bool truncate) const {
+    stream << "Function " << name_ << " (" << this << ")" << std::endl;
+    for (casadi_int i=0; i<n_in_; ++i) {
+      stream << "Input " << i << " (" << name_in_[i] << "): ";
+      if (arg[i]) {
+        DM::print_default(stream, sparsity_in_[i], arg[i], truncate);
+        stream << std::endl;
+      } else {
+        stream << "NULL" << std::endl;
+      }
+    }
+  }
+
+  void FunctionInternal::print_out(std::ostream &stream, double** res, bool truncate) const {
+    stream << "Function " << name_ << " (" << this << ")" << std::endl;
+    for (casadi_int i=0; i<n_out_; ++i) {
+      stream << "Output " << i << " (" << name_out_[i] << "): ";
+      if (res[i]) {
+        DM::print_default(stream, sparsity_out_[i], res[i], truncate);
+        stream << std::endl;
+      } else {
+        stream << "NULL" << std::endl;
+      }
+    }
+  }
+
   int FunctionInternal::
   eval_gen(const double** arg, double** res, casadi_int* iw, double* w, void* mem) const {
     casadi_int dump_id = (dump_in_ || dump_out_ || dump_) ? get_dump_id() : 0;
     if (dump_in_) dump_in(dump_id, arg);
     if (dump_ && dump_id==0) dump();
-    if (print_in_) {
-      uout() << "Function " << name_ << " (" << this << ")" << std::endl;
-      for (casadi_int i=0; i<n_in_; ++i) {
-        uout() << "Input " << i << " (" << name_in_[i] << "): ";
-        if (arg[i]) {
-          DM::print_dense(uout(), sparsity_in_[i], arg[i], false);
-          uout() << std::endl;
-        } else {
-          uout() << "NULL" << std::endl;
-        }
-      }
-    }
-
+    if (print_in_) print_in(uout(), arg, false);
     auto m = static_cast<ProtoFunctionMemory*>(mem);
 
     // Reset statistics
@@ -786,18 +804,7 @@ namespace casadi {
     print_time(m->fstats);
 
     if (dump_out_) dump_out(dump_id, res);
-    if (print_out_) {
-      uout() << "Function " << name_ << " (" << this << ")" << std::endl;
-      for (casadi_int i=0; i<n_out_; ++i) {
-        uout() << "Output " << i << " (" << name_out_[i] << "): ";
-        if (res[i]) {
-          DM::print_dense(uout(), sparsity_out_[i], res[i], false);
-          uout() << std::endl;
-        } else {
-          uout() << "NULL" << std::endl;
-        }
-      }
-    }
+    if (print_out_) print_out(uout(), res, false);
     // Check all outputs for NaNs
     if (regularity_check_) {
       for (casadi_int i = 0; i < n_out_; ++i) {
