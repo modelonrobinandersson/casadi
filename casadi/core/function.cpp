@@ -724,7 +724,7 @@ namespace casadi {
       std::vector<MX> dummy_in = f.mx_in();
       std::vector<MX> dummy_out(f.n_out());
       for (casadi_int i = 0; i < dummy_out.size(); ++i) {
-        dummy_out.at(i) = MX::nan(f.sparsity_out(i));
+        dummy_out.at(i) = MX::zeros(f.sparsity_out(i));
       }
       Function dummy("dummy_" + f.name(), dummy_in, dummy_out, f.name_in(), f.name_out());
       // Form a conditional call
@@ -1442,6 +1442,7 @@ namespace casadi {
 #ifdef WITH_EXTRA_CHECKS
       call_depth_--;
 #endif // WITH_EXTRA_CHECKS
+      (*this)->print_in(uerr(), arg, true);
       THROW_ERROR("operator()", e.what());
     }
   }
