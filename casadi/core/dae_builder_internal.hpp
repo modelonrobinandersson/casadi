@@ -147,7 +147,7 @@ class CASADI_EXPORT DaeBuilderInternal : public SharedObjectInternal {
   void eliminate_w();
 
   /// Lift problem formulation by extracting shared subexpressions
-  void lift(bool lift_shared, bool lift_calls, bool inline_calls);
+  void lift(bool lift_shared, bool lift_calls);
 
   /// Eliminate quadrature states and turn them into ODE states
   void eliminate_quad();
@@ -166,9 +166,6 @@ class CASADI_EXPORT DaeBuilderInternal : public SharedObjectInternal {
 
   /// Clear output variable
   void clear_out(const std::string& v);
-
-  /// Prune dependent parameters that cannot be evaluated
-  void prune_d();
 
   /// Prune unused controls
   void prune(bool prune_p, bool prune_u);
@@ -198,17 +195,17 @@ class CASADI_EXPORT DaeBuilderInternal : public SharedObjectInternal {
 
   // Output convension in codegen
   enum DaeBuilderInternalOut {
-    DAE_BUILDER_DDEF,
-    DAE_BUILDER_WDEF,
     DAE_BUILDER_ODE,
     DAE_BUILDER_ALG,
     DAE_BUILDER_QUAD,
+    DAE_BUILDER_DDEF,
+    DAE_BUILDER_WDEF,
     DAE_BUILDER_YDEF,
     DAE_BUILDER_NUM_OUT
   };
 
   // Get input expression, given enum
-  std::vector<MX> input(DaeBuilderInternalIn ind) const;
+  const std::vector<MX>& input(DaeBuilderInternalIn ind) const;
 
   // Get output expression, given enum
   std::vector<MX> output(DaeBuilderInternalOut ind) const;
@@ -298,20 +295,40 @@ protected:
   /// Find of variable by name
   std::unordered_map<std::string, size_t> varind_;
 
+  /// Ordered variables
+  std::vector<MX> t_, p_, u_, x_, z_, q_, c_, d_, w_, y_;
+
   ///@{
   /// Ordered variables and equations
-  MX t_;
-  std::vector<MX> x_, ode_;
-  std::vector<MX> z_, alg_;
-  std::vector<MX> q_, quad_;
-  std::vector<MX> y_, ydef_;
-  std::vector<MX> u_;
-  std::vector<MX> p_;
-  std::vector<MX> c_, cdef_;
-  std::vector<MX> d_, ddef_;
-  std::vector<MX> w_, wdef_;
+  std::vector<MX> ode_, alg_, quad_;
   std::vector<MX> aux_;
   std::vector<MX> init_lhs_, init_rhs_;
+  ///@}
+
+  /** \brief Definitions of dependent constants */
+  std::vector<MX> cdef() const;
+
+  /** \brief Definitions of dependent parameters */
+  std::vector<MX> ddef() const;
+
+  /** \brief Definitions of dependent variables */
+  std::vector<MX> wdef() const;
+
+  /** \brief Definitions of output variables */
+  std::vector<MX> ydef() const;
+
+  ///@{
+  /// Add a new variable
+  MX add_t(const std::string& name);
+  MX add_p(const std::string& name, casadi_int n);
+  MX add_u(const std::string& name, casadi_int n);
+  MX add_x(const std::string& name, casadi_int n);
+  MX add_z(const std::string& name, casadi_int n);
+  MX add_q(const std::string& name, casadi_int n);
+  MX add_c(const std::string& name, const MX& new_cdef);
+  MX add_d(const std::string& name, const MX& new_ddef);
+  MX add_w(const std::string& name, const MX& new_wdef);
+  MX add_y(const std::string& name, const MX& new_ydef);
   ///@}
 
   /// Linear combinations of output expressions
