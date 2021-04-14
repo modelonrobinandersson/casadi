@@ -107,7 +107,7 @@ public:
   const std::vector<MX>& y() const;
 
   /** \brief Definitions of output variables */
-  const std::vector<MX>& ydef() const;
+  std::vector<MX> ydef() const;
 
   /** \brief Free controls */
   const std::vector<MX>& u() const;
@@ -119,7 +119,7 @@ public:
   const std::vector<MX>& c() const;
 
   /** \brief Definitions of named constants */
-  const std::vector<MX>& cdef() const;
+  std::vector<MX> cdef() const;
 
   /** \brief Dependent parameters */
   const std::vector<MX>& d() const;
@@ -127,7 +127,7 @@ public:
   /** \brief Definitions of dependent parameters
     * Interdependencies are allowed but must be non-cyclic.
     */
-  const std::vector<MX>& ddef() const;
+  std::vector<MX> ddef() const;
 
   /** \brief Dependent variables */
   const std::vector<MX>& w() const;
@@ -135,7 +135,7 @@ public:
   /** \brief Dependent variables and corresponding definitions
    * Interdependencies are allowed but must be non-cyclic.
    */
-  const std::vector<MX>& wdef() const;
+  std::vector<MX> wdef() const;
 
   /** \brief Auxiliary variables: Used e.g. to define functions */
   const std::vector<MX>& aux() const;
@@ -149,6 +149,9 @@ public:
 
   /** @name Variables and equations */
   ///@{
+
+  /** \brief Is there a time variable? */
+  bool has_t() const;
 
   /** \brief Differential states */
   casadi_int nx() const {return x().size();}
@@ -182,6 +185,9 @@ public:
    *  Formulate a dynamic system model
    */
   ///@{
+  /// Add an independent variable (time)
+  MX add_t(const std::string& name="t");
+
   /// Add a new parameter
   MX add_p(const std::string& name=std::string(), casadi_int n=1);
 
@@ -196,6 +202,9 @@ public:
 
   /// Add a new quadrature state
   MX add_q(const std::string& name=std::string(), casadi_int n=1);
+
+  /// Add a new constant
+  MX add_c(const std::string& name, const MX& new_cdef);
 
   /// Add a new dependent parameter
   MX add_d(const std::string& name, const MX& new_ddef);
@@ -227,38 +236,16 @@ public:
 
   /** @name Register an existing variable */
   ///@{
-  /// Register time variable
-  void register_t(const MX& new_t);
-
-  /// Register constant
-  void register_c(const MX& new_c, const MX& new_cdef);
-
-  /// Register dependent parameter
-  void register_d(const MX& new_d, const MX& new_ddef);
-
-  /// Register dependent variable
-  void register_w(const MX& new_w, const MX& new_wdef);
-
-  /// Register differential state
-  void register_x(const MX& new_x);
-
-  /// Register algebraic variable
-  void register_z(const MX& new_z);
-
-  /// Register input
-  void register_u(const MX& new_u);
-
-  /// Register free parameter
-  void register_p(const MX& new_p);
-
-  /// Register output variable
-  void register_y(const MX& new_y, const MX& new_ydef);
-
-  /// Clear input variable
-  void clear_in(const std::string& v);
-
-  /// Clear output variable
-  void clear_out(const std::string& v);
+  void register_t(const std::string& name);
+  void register_p(const std::string& name);
+  void register_u(const std::string& name);
+  void register_x(const std::string& name);
+  void register_z(const std::string& name);
+  void register_q(const std::string& name);
+  void register_c(const std::string& name);
+  void register_d(const std::string& name);
+  void register_w(const std::string& name);
+  void register_y(const std::string& name);
   ///@}
 
   /** @name Manipulation
@@ -266,11 +253,17 @@ public:
    */
   ///@{
 
+  /// Clear input variable
+  void clear_in(const std::string& v);
+
+  /// Clear output variable
+  void clear_out(const std::string& v);
+
   /// Eliminate all dependent variables
   void eliminate_w();
 
   /// Lift problem formulation by extracting shared subexpressions
-  void lift(bool lift_shared = true, bool lift_calls = true, bool inline_calls = false);
+  void lift(bool lift_shared = true, bool lift_calls = true);
 
   /// Eliminate quadrature states and turn them into ODE states
   void eliminate_quad();
@@ -283,9 +276,6 @@ public:
 
   /// Sort algebraic variables
   void sort_z(const std::vector<std::string>& z_order);
-
-  /// Prune dependent parameters that cannot be evaluated
-  void prune_d();
 
   /// Prune unused controls
   void prune(bool prune_p = true, bool prune_u = true);

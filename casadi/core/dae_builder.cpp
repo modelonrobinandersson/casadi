@@ -59,7 +59,7 @@ const std::string& DaeBuilder::name() const {
 }
 
 const MX& DaeBuilder::t() const {
-  return (*this)->t_;
+  return (*this)->t_.at(0);
 }
 
 const std::vector<MX>& DaeBuilder::x() const {
@@ -90,8 +90,8 @@ const std::vector<MX>& DaeBuilder::y() const {
   return (*this)->y_;
 }
 
-const std::vector<MX>& DaeBuilder::ydef() const {
-  return (*this)->ydef_;
+std::vector<MX> DaeBuilder::ydef() const {
+  return (*this)->ydef();
 }
 
 const std::vector<MX>& DaeBuilder::u() const {
@@ -106,24 +106,24 @@ const std::vector<MX>& DaeBuilder::c() const {
   return (*this)->c_;
 }
 
-const std::vector<MX>& DaeBuilder::cdef() const {
-  return (*this)->cdef_;
+std::vector<MX> DaeBuilder::cdef() const {
+  return (*this)->cdef();
 }
 
 const std::vector<MX>& DaeBuilder::d() const {
   return (*this)->d_;
 }
 
-const std::vector<MX>& DaeBuilder::ddef() const {
-  return (*this)->ddef_;
+std::vector<MX> DaeBuilder::ddef() const {
+  return (*this)->ddef();
 }
 
 const std::vector<MX>& DaeBuilder::w() const {
   return (*this)->w_;
 }
 
-const std::vector<MX>& DaeBuilder::wdef() const {
-  return (*this)->wdef_;
+std::vector<MX> DaeBuilder::wdef() const {
+  return (*this)->wdef();
 }
 
 const std::vector<MX>& DaeBuilder::aux() const {
@@ -136,6 +136,10 @@ const std::vector<MX>& DaeBuilder::init_lhs() const {
 
 const std::vector<MX>& DaeBuilder::init_rhs() const {
   return (*this)->init_rhs_;
+}
+
+bool DaeBuilder::has_t() const {
+  return !(*this)->t_.empty();
 }
 
 void DaeBuilder::parse_fmi(const std::string& filename) {
@@ -220,80 +224,46 @@ void DaeBuilder::add_variable(const MX& new_v) {
   add_variable(new_v.name(), v);
 }
 
-MX DaeBuilder::add_x(const std::string& name, casadi_int n) {
-  if (name.empty()) return add_x("x" + str(x().size()), n);
-  MX new_x = add_variable(name, n);
-  (*this)->x_.push_back(new_x);
-  return new_x;
-}
-
-void DaeBuilder::register_p(const MX& new_p) {
-  // Consistency checks
-  casadi_assert(has_variable(new_p.name()), "No such variable: " + new_p.name());
-  // Add to list
-  (*this)->p_.push_back(new_p);
-}
-
-void DaeBuilder::register_u(const MX& new_u) {
-  // Consistency checks
-  casadi_assert(has_variable(new_u.name()), "No such variable: " + new_u.name());
-  // Add to list
-  (*this)->u_.push_back(new_u);
-}
-
-void DaeBuilder::register_x(const MX& new_x) {
-  // Consistency checks
-  casadi_assert(has_variable(new_x.name()), "No such variable: " + new_x.name());
-  // Add to list
-  (*this)->x_.push_back(new_x);
-}
-
-void DaeBuilder::register_z(const MX& new_z) {
-  // Consistency checks
-  casadi_assert(has_variable(new_z.name()), "No such variable: " + new_z.name());
-  // Add to list
-  (*this)->z_.push_back(new_z);
-}
-
-void DaeBuilder::register_t(const MX& new_t) {
+void DaeBuilder::register_t(const std::string& name) {
   // Save to class
-  (*this)->t_ = new_t;
+  casadi_assert(!has_t(), "'t' already defined");
+  (*this)->t_.push_back(var(name));
 }
 
-void DaeBuilder::register_c(const MX& new_c, const MX& new_cdef) {
-  // Consistency check
-  casadi_assert(new_c.sparsity() == new_cdef.sparsity(), "Mismatching sparsity");
-  casadi_assert(has_variable(new_c.name()), "No such variable: " + new_c.name());
-  // Add to lists
-  (*this)->c_.push_back(new_c);
-  (*this)->cdef_.push_back(new_cdef);
+void DaeBuilder::register_p(const std::string& name) {
+  (*this)->p_.push_back(var(name));
 }
 
-void DaeBuilder::register_d(const MX& new_d, const MX& new_ddef) {
-  // Consistency checks
-  casadi_assert(new_d.sparsity() == new_ddef.sparsity(), "Mismatching sparsity");
-  casadi_assert(has_variable(new_d.name()), "No such variable: " + new_d.name());
-  // Add to lists
-  (*this)->d_.push_back(new_d);
-  (*this)->ddef_.push_back(new_ddef);
+void DaeBuilder::register_u(const std::string& name) {
+  (*this)->u_.push_back(var(name));
 }
 
-void DaeBuilder::register_w(const MX& new_w, const MX& new_wdef) {
-  // Consistency checks
-  casadi_assert(new_w.sparsity() == new_wdef.sparsity(), "Mismatching sparsity");
-  casadi_assert(has_variable(new_w.name()), "No such variable: " + new_w.name());
-  // Add to lists
-  (*this)->w_.push_back(new_w);
-  (*this)->wdef_.push_back(new_wdef);
+void DaeBuilder::register_x(const std::string& name) {
+  (*this)->x_.push_back(var(name));
 }
 
-void DaeBuilder::register_y(const MX& new_y, const MX& new_ydef) {
-  // Consistency checks
-  casadi_assert(new_y.sparsity() == new_ydef.sparsity(), "Mismatching sparsity");
-  casadi_assert(has_variable(new_y.name()), "No such variable: " + new_y.name());
-  // Add to lists
-  (*this)->y_.push_back(new_y);
-  (*this)->ydef_.push_back(new_ydef);
+void DaeBuilder::register_z(const std::string& name) {
+  (*this)->z_.push_back(var(name));
+}
+
+void DaeBuilder::register_q(const std::string& name) {
+  (*this)->q_.push_back(var(name));
+}
+
+void DaeBuilder::register_c(const std::string& name) {
+  (*this)->c_.push_back(var(name));
+}
+
+void DaeBuilder::register_d(const std::string& name) {
+  (*this)->d_.push_back(var(name));
+}
+
+void DaeBuilder::register_w(const std::string& name) {
+  (*this)->w_.push_back(var(name));
+}
+
+void DaeBuilder::register_y(const std::string& name) {
+  (*this)->y_.push_back(var(name));
 }
 
 void DaeBuilder::clear_in(const std::string& v) {
@@ -312,32 +282,96 @@ void DaeBuilder::clear_out(const std::string& v) {
   }
 }
 
-MX DaeBuilder::add_q(const std::string& name, casadi_int n) {
-  if (name.empty()) return add_q("q" + str(q().size()), n);
-  MX new_q = add_variable(name, n);
-  (*this)->q_.push_back(new_q);
-  return new_q;
-}
-
-MX DaeBuilder::add_z(const std::string& name, casadi_int n) {
-  if (name.empty()) return add_z("z" + str(z().size()), n);
-  MX new_z = add_variable(name, n);
-  (*this)->z_.push_back(new_z);
-  return new_z;
+MX DaeBuilder::add_t(const std::string& name) {
+  casadi_assert((*this)->t_.empty(), "'t' already defined");
+  MX new_t = add_variable(name);
+  (*this)->t_.push_back(new_t);
 }
 
 MX DaeBuilder::add_p(const std::string& name, casadi_int n) {
-  if (name.empty()) return add_p("p" + str(p().size()), n);
-  MX new_p = add_variable(name, n);
-  (*this)->p_.push_back(new_p);
-  return new_p;
+  try {
+    if (name.empty()) return add_p("p" + str(p().size()), n);
+    return (*this)->add_p(name, n);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_p", e.what());
+    return MX();
+  }
 }
 
 MX DaeBuilder::add_u(const std::string& name, casadi_int n) {
-  if (name.empty()) return add_u("u" + str(u().size()), n);
-  MX new_u = add_variable(name, n);
-  (*this)->u_.push_back(new_u);
-  return new_u;
+  try {
+    if (name.empty()) return add_u("u" + str(u().size()), n);
+    return (*this)->add_p(name, n);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_u", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_x(const std::string& name, casadi_int n) {
+  try {
+    if (name.empty()) return add_x("x" + str(x().size()), n);
+    return (*this)->add_x(name, n);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_x", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_z(const std::string& name, casadi_int n) {
+  try {
+    if (name.empty()) return add_z("z" + str(z().size()), n);
+    return (*this)->add_z(name, n);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_z", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_q(const std::string& name, casadi_int n) {
+  try {
+    if (name.empty()) return add_q("q" + str(q().size()), n);
+    return (*this)->add_x(name, n);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_q", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_c(const std::string& name, const MX& new_cdef) {
+  try {
+    return (*this)->add_c(name, new_cdef);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_c", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_d(const std::string& name, const MX& new_ddef) {
+  try {
+    return (*this)->add_d(name, new_ddef);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_d", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_w(const std::string& name, const MX& new_wdef) {
+  try {
+    return (*this)->add_w(name, new_wdef);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_w", e.what());
+    return MX();
+  }
+}
+
+MX DaeBuilder::add_y(const std::string& name, const MX& new_ydef) {
+  try {
+    return (*this)->add_y(name, new_ydef);
+  } catch (std::exception& e) {
+    THROW_ERROR("add_y", e.what());
+    return MX();
+  }
 }
 
 MX DaeBuilder::add_aux(const std::string& name, casadi_int n) {
@@ -350,27 +384,6 @@ MX DaeBuilder::add_aux(const std::string& name, casadi_int n) {
 void DaeBuilder::add_init(const MX& lhs, const MX& rhs) {
   (*this)->init_lhs_.push_back(lhs);
   (*this)->init_rhs_.push_back(rhs);
-}
-
-MX DaeBuilder::add_d(const std::string& name, const MX& new_ddef) {
-  MX new_d = add_variable(name, new_ddef.sparsity());
-  (*this)->d_.push_back(new_d);
-  (*this)->ddef_.push_back(new_ddef);
-  return new_d;
-}
-
-MX DaeBuilder::add_w(const std::string& name, const MX& new_wdef) {
-  MX new_w = add_variable(name, new_wdef.sparsity());
-  (*this)->w_.push_back(new_w);
-  (*this)->wdef_.push_back(new_wdef);
-  return new_w;
-}
-
-MX DaeBuilder::add_y(const std::string& name, const MX& new_ydef) {
-  MX new_y = add_variable(name, new_ydef.sparsity());
-  (*this)->y_.push_back(new_y);
-  (*this)->ydef_.push_back(new_ydef);
-  return new_y;
 }
 
 void DaeBuilder::add_ode(const std::string& name, const MX& new_ode) {
@@ -417,9 +430,9 @@ void DaeBuilder::eliminate_w() {
   }
 }
 
-void DaeBuilder::lift(bool lift_shared, bool lift_calls, bool inline_calls) {
+void DaeBuilder::lift(bool lift_shared, bool lift_calls) {
   try {
-    (*this)->lift(lift_shared, lift_calls, inline_calls);
+    (*this)->lift(lift_shared, lift_calls);
   } catch (std::exception& e) {
     THROW_ERROR("lift", e.what());
   }
@@ -553,6 +566,8 @@ Function DaeBuilder::add_fun(const std::string& name,
                              const Dict& opts) {
   casadi_assert(!has_fun(name), "Function '" + name + "' already exists");
 
+  // Dependent variable definitions
+  std::vector<MX> wdef = this->wdef();
   // Get inputs
   std::vector<MX> arg_ex, res_ex;
   for (auto&& s : arg) arg_ex.push_back(var(s));
@@ -561,7 +576,7 @@ Function DaeBuilder::add_fun(const std::string& name,
     casadi_int v_ind;
     for (v_ind=0; v_ind < (*this)->w_.size(); ++v_ind) {
       if (s == (*this)->w_.at(v_ind).name()) {
-        res_ex.push_back((*this)->wdef_.at(v_ind));
+        res_ex.push_back(wdef.at(v_ind));
         break;
       }
     }
@@ -645,14 +660,6 @@ Function DaeBuilder::dependent_fun(const std::string& fname,
   } catch (std::exception& e) {
     THROW_ERROR("dependent_fun", e.what());
     return Function(); // never reached
-  }
-}
-
-void DaeBuilder::prune_d() {
-  try {
-    (*this)->prune_d();
-  } catch (std::exception& e) {
-    THROW_ERROR("prune_d", e.what());
   }
 }
 

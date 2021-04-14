@@ -145,7 +145,6 @@ DaeBuilderInternal::~DaeBuilderInternal() {
 }
 
 DaeBuilderInternal::DaeBuilderInternal(const std::string& name) : name_(name) {
-  t_ = MX::sym("t");
   clear_cache_ = false;
 }
 
@@ -258,13 +257,13 @@ void DaeBuilderInternal::parse_fmi(const std::string& filename) {
     // Sort by types
     if (it->causality == Variable::INDEPENDENT) {
       // Independent (time) variable
-      t_ = it->v;
+      t_.push_back(it->v);
     } else if (it->causality == Variable::INPUT) {
       u_.push_back(it->v);
     } else if (it->variability == Variable::CONSTANT) {
       // Named constant
       c_.push_back(it->v);
-      cdef_.push_back(it->start);
+      it->beq = it->start;
     } else if (it->variability == Variable::FIXED || it->variability == Variable::TUNABLE) {
       p_.push_back(it->v);
     } else if (it->variability == Variable::CONTINUOUS) {
@@ -287,7 +286,7 @@ void DaeBuilderInternal::parse_fmi(const std::string& filename) {
       // Is it (also) an output variable?
       if (it->causality == Variable::OUTPUT) {
         y_.push_back(it->v);
-        ydef_.push_back(it->v);
+        it->beq = it->v;
       }
     } else if (it->dependency) {
       casadi_warning("Cannot sort " + it->name);
@@ -391,7 +390,7 @@ MX DaeBuilderInternal::read_expr(const XmlNode& node) {
   } else if (name=="Tan") {
     return tan(read_expr(node[0]));
   } else if (name=="Time") {
-    return t_;
+    return t_.at(0);
   } else if (name=="TimedVariable") {
     return read_variable(node[0]).v;
   }
@@ -430,7 +429,7 @@ void DaeBuilderInternal::disp(std::ostream& stream, bool more) const {
 
   // Print the variables
   stream << "Variables" << std::endl;
-  stream << "  t = " << str(t_) << std::endl;
+  if (!t_.empty()) stream << "  t = " << str(t_.at(0)) << std::endl;
   if (!c_.empty()) stream << "  c = " << str(c_) << std::endl;
   if (!p_.empty()) stream << "  p = " << str(p_) << std::endl;
   if (!d_.empty()) stream << "  d = " << str(d_) << std::endl;
@@ -443,20 +442,23 @@ void DaeBuilderInternal::disp(std::ostream& stream, bool more) const {
 
   if (!c_.empty()) {
     stream << "Constants" << std::endl;
-    for (casadi_int i=0; i<c_.size(); ++i)
-      stream << "  " << str(c_[i]) << " == " << str(cdef_[i]) << std::endl;
+    for (const MX& c : c_) {
+      stream << "  " << str(c) << " == " << str(variable(c.name()).beq) << std::endl;
+    }
   }
 
   if (!d_.empty()) {
     stream << "Dependent parameters" << std::endl;
-    for (casadi_int i=0; i<d_.size(); ++i)
-      stream << "  " << str(d_[i]) << " == " << str(ddef_[i]) << std::endl;
+    for (const MX& d : d_) {
+      stream << "  " << str(d) << " == " << str(variable(d.name()).beq) << std::endl;
+    }
   }
 
   if (!w_.empty()) {
     stream << "Dependent variables" << std::endl;
-    for (casadi_int i=0; i<w_.size(); ++i)
-      stream << "  " << str(w_[i]) << " == " << str(wdef_[i]) << std::endl;
+    for (const MX& w : w_) {
+      stream << "  " << str(w) << " == " << str(variable(w.name()).beq) << std::endl;
+    }
   }
 
   if (!x_.empty()) {
@@ -490,8 +492,8 @@ void DaeBuilderInternal::disp(std::ostream& stream, bool more) const {
 
   if (!y_.empty()) {
     stream << "Output variables" << std::endl;
-    for (casadi_int i=0; i<y_.size(); ++i) {
-      stream << "  " << str(y_[i]) << " == " << str(ydef_[i]) << std::endl;
+    for (const MX& y : y_) {
+      stream << "  " << str(y) << " == " << str(variable(y.name()).beq) << std::endl;
     }
   }
 }
@@ -503,11 +505,13 @@ void DaeBuilderInternal::eliminate_quad() {
 }
 
 void DaeBuilderInternal::sort_d() {
-  sort_dependent(d_, ddef_);
+  std::vector<MX> ddef = this->ddef();
+  sort_dependent(d_, ddef);
 }
 
 void DaeBuilderInternal::sort_w() {
-  sort_dependent(w_, wdef_);
+  std::vector<MX> wdef = this->wdef();
+  sort_dependent(w_, wdef);
 }
 
 void DaeBuilderInternal::sort_z(const std::vector<std::string>& z_order) {
@@ -535,20 +539,28 @@ void DaeBuilderInternal::sort_z(const std::vector<std::string>& z_order) {
 }
 
 void DaeBuilderInternal::clear_in(const std::string& v) {
-  switch(to_enum<DaeBuilderInternalIn>(v)) {
-  case DAE_BUILDER_U:
-    u_.clear();
-    break;
-  default:
-    casadi_error("Not implemented: " + v);
+  switch (to_enum<DaeBuilderInternalIn>(v)) {
+  case DAE_BUILDER_T: return t_.clear();
+  case DAE_BUILDER_P: return p_.clear();
+  case DAE_BUILDER_U: return u_.clear();
+  case DAE_BUILDER_X: return x_.clear();
+  case DAE_BUILDER_Z: return z_.clear();
+  case DAE_BUILDER_Q: return q_.clear();
+  case DAE_BUILDER_C: return c_.clear();
+  case DAE_BUILDER_D: return d_.clear();
+  case DAE_BUILDER_W: return w_.clear();
+  case DAE_BUILDER_Y: return y_.clear();
   }
+  casadi_error("Cannot clear input: " + v);
 }
 
 void DaeBuilderInternal::clear_out(const std::string& v) {
-  switch(to_enum<DaeBuilderInternalOut>(v)) {
-    default:
-      casadi_error("Not implemented: " + v);
+  switch (to_enum<DaeBuilderInternalOut>(v)) {
+  case DAE_BUILDER_ODE: return ode_.clear();
+  case DAE_BUILDER_ALG: return alg_.clear();
+  case DAE_BUILDER_QUAD: return quad_.clear();
   }
+  casadi_error("Cannot clear output: " + v);
 }
 
 void DaeBuilderInternal::prune(bool prune_p, bool prune_u) {
@@ -635,8 +647,11 @@ void DaeBuilderInternal::add_variable(const std::string& name, const Variable& v
 
 void DaeBuilderInternal::sanity_check() const {
   // Time
-  casadi_assert(t_.is_symbolic(), "Non-symbolic time t");
-  casadi_assert(t_.is_scalar(), "Non-scalar time t");
+  if (!t_.empty()) {
+    casadi_assert(t_.size() == 1, "At most one time variable allowed");
+    casadi_assert(t_[0].is_symbolic(), "Non-symbolic time t");
+    casadi_assert(t_[0].is_scalar(), "Non-scalar time t");
+  }
 
   // Differential states
   casadi_assert(x_.size()==ode_.size(),
@@ -665,24 +680,18 @@ void DaeBuilderInternal::sanity_check() const {
   }
 
   // Dependent parameters
-  casadi_assert(d_.size()==ddef_.size(), "d and ddef have different lengths");
   for (casadi_int i=0; i<d_.size(); ++i) {
     casadi_assert(d_[i].is_symbolic(), "Non-symbolic dependent parameter d");
-    casadi_assert(d_[i].size()==ddef_[i].size(), "ddef has wrong dimensions");
   }
 
   // Dependent variables
-  casadi_assert(w_.size()==wdef_.size(), "w and wdef have different lengths");
   for (casadi_int i=0; i<w_.size(); ++i) {
     casadi_assert(w_[i].is_symbolic(), "Non-symbolic dependent parameter v");
-    casadi_assert(w_[i].size()==wdef_[i].size(), "wdef has wrong dimensions");
   }
 
   // Output equations
-  casadi_assert(y_.size()==ydef_.size(), "y and ydef have different lengths");
   for (casadi_int i=0; i<y_.size(); ++i) {
     casadi_assert(y_[i].is_symbolic(), "Non-symbolic output y");
-    casadi_assert(y_[i].size()==ydef_[i].size(), "ydef has wrong dimensions");
   }
 
   // Control
@@ -746,7 +755,6 @@ void DaeBuilderInternal::eliminate_w() {
   ex.insert(ex.end(), alg_.begin(), alg_.end());
   ex.insert(ex.end(), ode_.begin(), ode_.end());
   ex.insert(ex.end(), quad_.begin(), quad_.end());
-  ex.insert(ex.end(), ydef_.begin(), ydef_.end());
   // Also include certain attributes in variables
   for (const Variable& v : variables_) {
     if (!v.min.is_constant()) ex.push_back(v.min);
@@ -756,10 +764,10 @@ void DaeBuilderInternal::eliminate_w() {
     if (!v.beq.is_constant()) ex.push_back(v.beq);
   }
   // Perform elimination
-  substitute_inplace(w_, wdef_, ex);
-  // Clear lists
+  std::vector<MX> wdef = this->wdef();
+  substitute_inplace(w_, wdef, ex);
+  // Clear list of dependent variables
   w_.clear();
-  wdef_.clear();
   // Get algebraic equations
   auto it = ex.begin();
   std::copy(it, it + alg_.size(), alg_.begin());
@@ -770,9 +778,6 @@ void DaeBuilderInternal::eliminate_w() {
   // Get quadrature equations
   std::copy(it, it + quad_.size(), quad_.begin());
   it += quad_.size();
-  // Get output equations
-  std::copy(it, it + ydef_.size(), ydef_.begin());
-  it += ydef_.size();
   // Get variable attributes
   for (Variable& v : variables_) {
     if (!v.min.is_constant()) v.min = *it++;
@@ -785,7 +790,7 @@ void DaeBuilderInternal::eliminate_w() {
   casadi_assert_dev(it == ex.end());
 }
 
-void DaeBuilderInternal::lift(bool lift_shared, bool lift_calls, bool inline_calls) {
+void DaeBuilderInternal::lift(bool lift_shared, bool lift_calls) {
   // Not tested if w is non-empty before
   if (!w_.empty()) casadi_warning("'w' already has entries");
   // Expressions where the variables are also being used
@@ -793,16 +798,19 @@ void DaeBuilderInternal::lift(bool lift_shared, bool lift_calls, bool inline_cal
   ex.insert(ex.end(), alg_.begin(), alg_.end());
   ex.insert(ex.end(), ode_.begin(), ode_.end());
   ex.insert(ex.end(), quad_.begin(), quad_.end());
-  ex.insert(ex.end(), ydef_.begin(), ydef_.end());
+  for (const MX& y : y_) ex.push_back(variable(y.name()).beq);
   // Lift expressions
   std::vector<MX> new_w, new_wdef;
   Dict opts{{"lift_shared", lift_shared}, {"lift_calls", lift_calls},
     {"prefix", "w_"}, {"suffix", ""}, {"offset", static_cast<casadi_int>(w_.size())}};
   extract(ex, new_w, new_wdef, opts);
-  // Update w_, wdef_
+  // Register as dependent variables
   for (size_t i = 0; i < new_w.size(); ++i) {
-    w_.push_back(new_w.at(i));
-    wdef_.push_back(new_wdef.at(i));
+    Variable v(new_w.at(i).name());
+    v.v = new_w.at(i);
+    v.beq = new_wdef.at(i);
+    add_variable(v.name, v);
+    w_.push_back(v.v);
   }
   // Get algebraic equations
   auto it = ex.begin();
@@ -815,82 +823,22 @@ void DaeBuilderInternal::lift(bool lift_shared, bool lift_calls, bool inline_cal
   std::copy(it, it + quad_.size(), quad_.begin());
   it += quad_.size();
   // Get output equations
-  std::copy(it, it + ydef_.size(), ydef_.begin());
-  it += ydef_.size();
+  for (const MX& y : y_) variable(y.name()).beq = *it++;
   // Consistency check
   casadi_assert_dev(it == ex.end());
-  // Have any call node been eliminated?
-  bool any_inlined = false;
-  if (inline_calls) {
-    // Loop over call nodes in wdef
-    std::map<MXNode*, CallIO> call_nodes;
-    for (MX& wdefref : wdef_) {
-      // Handle function call nodes
-      if (wdefref.is_output()) {
-        // Get function call node
-        MX c = wdefref.dep(0);
-        // Get function instance
-        Function f = c.which_function();
-        // casadi_message("Found " + f.name() + ", class = " + f.class_name());
-        // Only inline MXFunction
-        if (f.class_name() != "MXFunction") continue;
-        // Find the corresponding call node in the map
-        auto call_it = call_nodes.find(c.get());
-        // If first time this call node is encountered
-        if (call_it == call_nodes.end()) {
-          // Create new CallIO struct
-          CallIO cio;
-          // Save function instance
-          casadi_message("Inlining '" + f.name() + "'");
-          cio.f = f;
-          // Expressions for function call inputs
-          cio.arg.resize(f.n_in());
-          for (casadi_int i = 0; i < cio.arg.size(); ++i) {
-            cio.arg.at(i) = c.dep(i);
-          }
-          // Inline function call
-          f.call(cio.arg, cio.res, true);
-          // Save to map and update iterator
-          call_it = call_nodes.insert(std::make_pair(c.get(), cio)).first;
-        }
-        // Which output of the function are we calculating?
-        casadi_int oind = wdefref.which_output();
-        // Save output expression to wdef_
-        wdefref = call_it->second.res.at(oind);
-      }
-    }
-    // Was any call node actually been inlined?
-    any_inlined = !call_nodes.empty();
-  }
-  // If no calls were inlined, done
-  if (!any_inlined) {
-    // Register as dependent variables
-    for (const MX& w_k : w_) {
-      Variable v(w_k.name());
-      v.v = w_k;
-      add_variable(v.name, v);
-    }
-    return;
-  }
-  // Start over again, removing lifted expressions
-  casadi_message("Eliminating dependent variables before recursive call");
-  eliminate_w();
-  // Tail recursive call
-  casadi_message("Calling 'lift' recursively");
-  lift(lift_shared, lift_calls, inline_calls);
 }
 
 std::string to_string(DaeBuilderInternal::DaeBuilderInternalIn v) {
   switch (v) {
   case DaeBuilderInternal::DAE_BUILDER_T: return "t";
-  case DaeBuilderInternal::DAE_BUILDER_C: return "c";
   case DaeBuilderInternal::DAE_BUILDER_P: return "p";
-  case DaeBuilderInternal::DAE_BUILDER_D: return "d";
-  case DaeBuilderInternal::DAE_BUILDER_W: return "w";
   case DaeBuilderInternal::DAE_BUILDER_U: return "u";
   case DaeBuilderInternal::DAE_BUILDER_X: return "x";
   case DaeBuilderInternal::DAE_BUILDER_Z: return "z";
   case DaeBuilderInternal::DAE_BUILDER_Q: return "q";
+  case DaeBuilderInternal::DAE_BUILDER_C: return "c";
+  case DaeBuilderInternal::DAE_BUILDER_D: return "d";
+  case DaeBuilderInternal::DAE_BUILDER_W: return "w";
   case DaeBuilderInternal::DAE_BUILDER_Y: return "y";
   default: break;
   }
@@ -899,20 +847,20 @@ std::string to_string(DaeBuilderInternal::DaeBuilderInternalIn v) {
 
 std::string to_string(DaeBuilderInternal::DaeBuilderInternalOut v) {
   switch (v) {
-  case DaeBuilderInternal::DAE_BUILDER_DDEF: return "ddef";
-  case DaeBuilderInternal::DAE_BUILDER_WDEF: return "wdef";
   case DaeBuilderInternal::DAE_BUILDER_ODE: return "ode";
   case DaeBuilderInternal::DAE_BUILDER_ALG: return "alg";
   case DaeBuilderInternal::DAE_BUILDER_QUAD: return "quad";
+  case DaeBuilderInternal::DAE_BUILDER_DDEF: return "ddef";
+  case DaeBuilderInternal::DAE_BUILDER_WDEF: return "wdef";
   case DaeBuilderInternal::DAE_BUILDER_YDEF: return "ydef";
   default: break;
   }
   return "";
 }
 
-std::vector<MX> DaeBuilderInternal::input(DaeBuilderInternalIn ind) const {
+const std::vector<MX>& DaeBuilderInternal::input(DaeBuilderInternalIn ind) const {
   switch (ind) {
-  case DAE_BUILDER_T: return std::vector<MX>(1, t_);
+  case DAE_BUILDER_T: return t_;
   case DAE_BUILDER_C: return c_;
   case DAE_BUILDER_P: return p_;
   case DAE_BUILDER_D: return d_;
@@ -922,7 +870,11 @@ std::vector<MX> DaeBuilderInternal::input(DaeBuilderInternalIn ind) const {
   case DAE_BUILDER_Z: return z_;
   case DAE_BUILDER_Q: return q_;
   case DAE_BUILDER_Y: return y_;
-  default: return std::vector<MX>();
+  default:
+    {
+      static std::vector<MX> dummy;
+      return dummy;
+    }
   }
 }
 
@@ -936,12 +888,12 @@ std::vector<MX> DaeBuilderInternal::input(const std::vector<DaeBuilderInternalIn
 
 std::vector<MX> DaeBuilderInternal::output(DaeBuilderInternalOut ind) const {
   switch (ind) {
-  case DAE_BUILDER_DDEF: return ddef_;
-  case DAE_BUILDER_WDEF: return wdef_;
   case DAE_BUILDER_ODE: return ode_;
   case DAE_BUILDER_ALG: return alg_;
   case DAE_BUILDER_QUAD: return quad_;
-  case DAE_BUILDER_YDEF: return ydef_;
+  case DAE_BUILDER_DDEF: return ddef();
+  case DAE_BUILDER_WDEF: return wdef();
+  case DAE_BUILDER_YDEF: return ydef();
   default: return std::vector<MX>();
   }
 }
@@ -1018,7 +970,7 @@ Function DaeBuilderInternal::create(const std::string& fname,
     casadi_assert(!elim_w, "Lifted calls cannot be used if dependent variables are eliminated");
     // Only lift calls if really needed
     lifted_calls = false;
-    for (const MX& vdef_comp : wdef_) {
+    for (const MX& vdef_comp : wdef()) {
       if (vdef_comp.is_output()) {
         // There are indeed function calls present
         lifted_calls = true;
@@ -1050,11 +1002,13 @@ Function DaeBuilderInternal::create(const std::string& fname,
   for (size_t i = 0; i < w_.size(); ++i) {
     v_map[w_.at(i).get()] = i;
   }
+  // Definitions of w
+  std::vector<MX> wdef = this->wdef();
   // Collect all the call nodes
   std::map<MXNode*, CallIO> call_nodes;
-  for (size_t vdefind = 0; vdefind < wdef_.size(); ++vdefind) {
+  for (size_t vdefind = 0; vdefind < wdef.size(); ++vdefind) {
     // Current element handled
-    const MX& vdefref = wdef_.at(vdefind);
+    const MX& vdefref = wdef.at(vdefind);
     // Handle function call nodes
     if (vdefref.is_output()) {
       // Get function call node
@@ -1143,10 +1097,12 @@ MX DaeBuilderInternal::jac_vdef_v_from_calls(std::map<MXNode*, CallIO>& call_nod
   std::vector<MX> vblocks, hblocks;
   // All blocks for this block row
   std::map<size_t, MX> jac_brow;
+  // Definitions of w
+  std::vector<MX> wdef = this->wdef();
   // Collect all Jacobian blocks
-  for (size_t vdefind = 0; vdefind < wdef_.size(); ++vdefind) {
+  for (size_t vdefind = 0; vdefind < wdef.size(); ++vdefind) {
     // Current element handled
-    const MX& vdefref = wdef_.at(vdefind);
+    const MX& vdefref = wdef.at(vdefind);
     // Update vertical offset
     voffset_begin = voffset_end;
     voffset_end += vdefref.numel();
@@ -1297,8 +1253,8 @@ const Function& DaeBuilderInternal::oracle(bool sx, bool elim_w, bool lifted_cal
     // Oracle function inputs and outputs
     std::vector<MX> f_in, f_out, v;
     std::vector<std::string> f_in_name, f_out_name;
-    // Index for vdef
-    casadi_int vdef_ind = -1;
+    // Index for wdef
+    casadi_int wdef_ind = -1;
     // Options consistency check
     casadi_assert(!(elim_w && lifted_calls), "Incompatible options");
     // Do we need to substitute out v
@@ -1319,33 +1275,26 @@ const Function& DaeBuilderInternal::oracle(bool sx, bool elim_w, bool lifted_cal
     for (casadi_int i = 0; i != DAE_BUILDER_NUM_OUT; ++i) {
       v = output(static_cast<DaeBuilderInternalOut>(i));
       if (!v.empty()) {
-        if (i == DAE_BUILDER_WDEF) vdef_ind = f_out.size();
+        if (i == DAE_BUILDER_WDEF) wdef_ind = f_out.size();
         f_out.push_back(vertcat(v));
         f_out_name.push_back(to_string(static_cast<DaeBuilderInternalOut>(i)));
       }
     }
     // Eliminate v from inputs
     if (subst_v) {
-      // Make a copy of dependent variable definitions to avoid modifying member variable
-      std::vector<MX> vdef(wdef_);
+      // Dependent variable definitions
+      std::vector<MX> wdef = this->wdef();
       // Perform in-place substitution
-      substitute_inplace(w_, vdef, f_out, false);
-    } else if (lifted_calls && vdef_ind >= 0) {
-      // Make a copy of dependent variable definitions to avoid modifying member variable
-      std::vector<MX> vdef(wdef_);
+      substitute_inplace(w_, wdef, f_out, false);
+    } else if (lifted_calls && wdef_ind >= 0) {
+      // Dependent variable definitions
+      std::vector<MX> wdef = this->wdef();
       // Remove references to call nodes
-      for (MX& vdefref : vdef) {
-        if (vdefref.is_output()) vdefref = MX::zeros(vdefref.sparsity());
+      for (MX& wdefref : wdef) {
+        if (wdefref.is_output()) wdefref = MX::zeros(wdefref.sparsity());
       }
       // Save to oracle outputs
-      f_out.at(vdef_ind) = vertcat(vdef);
-      // Hack: Also clear ddef, ydef
-      // for (size_t i = 0; i < f_out.size(); ++i) {
-      //   if (f_out_name.at(i) == "ddef" || f_out_name.at(i) == "ydef") {
-      //     casadi_warning("Removing " + f_out_name.at(i) + " from oracle with lifted calls");
-      //     f_out.at(i) = MX::zeros(f_out.at(i).sparsity());
-      //   }
-      // }
+      f_out.at(wdef_ind) = vertcat(wdef);
     }
     // Create oracle
     oracle_[false][elim_w][lifted_calls]
@@ -1546,10 +1495,10 @@ Function DaeBuilderInternal::attribute_fun(const std::string& fname,
     // Handle dependency on w
     if (depends_on(f_out.back(), vertcat(w_))) {
       // Make copies of w and wdef and sort
-      std::vector<MX> w_sorted = w_, wdef_sorted = wdef_;
-      sort_dependent(w_sorted, wdef_sorted);
+      std::vector<MX> w_sorted = w_, wdef = this->wdef();
+      sort_dependent(w_sorted, wdef);
       // Eliminate dependency on w
-      substitute_inplace(w_sorted, wdef_sorted, attr, false);
+      substitute_inplace(w_sorted, wdef, attr, false);
       // Update f_out
       f_out.back() = vertcat(attr);
     }
@@ -1610,67 +1559,18 @@ Function DaeBuilderInternal::dependent_fun(const std::string& fname,
   std::vector<MX> dw, dwdef;
   if (calc_d) {
     dw.insert(dw.end(), d_.begin(), d_.end());
-    dwdef.insert(dwdef.end(), ddef_.begin(), ddef_.end());
+    std::vector<MX> ddef = this->ddef();
+    dwdef.insert(dwdef.end(), ddef.begin(), ddef.end());
   }
   if (calc_w) {
     dw.insert(dw.end(), w_.begin(), w_.end());
-    dwdef.insert(dwdef.end(), wdef_.begin(), wdef_.end());
+    std::vector<MX> wdef = this->wdef();
+    dwdef.insert(dwdef.end(), wdef.begin(), wdef  .end());
   }
   // Perform elimination
   substitute_inplace(dw, dwdef, f_out);
   // Assemble return function
   return Function(fname, f_in, f_out, s_in, s_out);
-}
-
-void DaeBuilderInternal::prune_d() {
-  // If no d, quick return
-  if (d_.empty()) return;
-  // Create a dependent function with all inputs except for d itself
-  Function dfun = dependent_fun("dfun", {"c"}, {"d"});
-  // If no free variables, all good
-  if (!dfun.has_free()) return;
-  // Print progress
-  casadi_message("Eliminating " + str(dfun.get_free()));
-  // Variables to be eliminated
-  MX elim = vertcat(dfun.free_mx());
-  // Create a function for identifying which d cannot be calculated
-  dfun = Function("dfun", {vertcat(d_), elim}, {vertcat(ddef_)}, {"d", "elim"}, {"ddef"});
-  // Seed all elim
-  std::vector<bvec_t> elim_sp(dfun.nnz_in("elim"), static_cast<bvec_t>(1));
-  // Do not seed d
-  std::vector<bvec_t> d_sp(dfun.nnz_in("d"), static_cast<bvec_t>(0));
-  // Propagate dependencies to ddef
-  std::vector<bvec_t> ddef_sp(dfun.nnz_out("ddef"), static_cast<bvec_t>(0));
-  dfun({&d_sp.front(), &elim_sp.front()}, {&ddef_sp.front()});
-  // Get vertical offsets in d vector
-  std::vector<casadi_int> d_off = offset(d_);
-  // Eliminate dependent variables that depend on any free variable
-  std::vector<MX> d_new, ddef_new;
-  d_new.reserve(d_.size());
-  ddef_new.reserve(ddef_.size());
-  for (size_t k = 0; k < d_.size(); ++k) {
-    // Does the dependence enter in the definition of the variable?
-    bvec_t ddef_sp_any(0);
-    for (casadi_int i = d_off.at(k); i < d_off.at(k + 1); ++i) {
-      ddef_sp_any = ddef_sp_any | ddef_sp.at(i);
-    }
-    // If there is a dependence?
-    if (ddef_sp_any) {
-      // Yes: Eliminate
-      casadi_message("Eliminating 'd' that depends on free variables: " + d_.at(k).name());
-    } else {
-      // No: Keep
-      d_new.push_back(d_.at(k));
-      ddef_new.push_back(ddef_.at(k));
-    }
-  }
-  // Update d, ddef
-  d_.resize(d_new.size());
-  std::copy(d_new.begin(), d_new.end(), d_.begin());
-  ddef_.resize(ddef_new.size());
-  std::copy(ddef_new.begin(), ddef_new.end(), ddef_.begin());
-  // Tail recursive call to handle dependencies of these eliminated dependent parameters
-  prune_d();
 }
 
 Function DaeBuilderInternal::gather_eq() const {
@@ -1688,6 +1588,132 @@ Function DaeBuilderInternal::gather_eq() const {
   }
   // Construct function
   return Function("all_eq", {}, f_out, {}, f_out_name);
+}
+
+std::vector<MX> DaeBuilderInternal::cdef() const {
+  std::vector<MX> ret;
+  ret.reserve(c_.size());
+  for (const MX& c : c_) ret.push_back(variable(c.name()).beq);
+  return ret;
+}
+
+std::vector<MX> DaeBuilderInternal::ddef() const {
+  std::vector<MX> ret;
+  ret.reserve(d_.size());
+  for (const MX& d : d_) ret.push_back(variable(d.name()).beq);
+  return ret;
+}
+
+std::vector<MX> DaeBuilderInternal::wdef() const {
+  std::vector<MX> ret;
+  ret.reserve(w_.size());
+  for (const MX& w : w_) ret.push_back(variable(w.name()).beq);
+  return ret;
+}
+
+std::vector<MX> DaeBuilderInternal::ydef() const {
+  std::vector<MX> ret;
+  ret.reserve(y_.size());
+  for (const MX& y : y_) ret.push_back(variable(y.name()).beq);
+  return ret;
+}
+
+MX DaeBuilderInternal::add_t(const std::string& name) {
+  casadi_assert(t_.empty(), "'t' already defined");
+  Variable v(name);
+  v.v = MX::sym(name);
+  v.causality = Variable::INDEPENDENT;
+  add_variable(name, v);
+  t_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_p(const std::string& name, casadi_int n) {
+  Variable v(name);
+  v.v = MX::sym(name, n);
+  v.variability = Variable::FIXED;
+  v.causality = Variable::INPUT;
+  add_variable(name, v);
+  p_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_u(const std::string& name, casadi_int n) {
+  Variable v(name);
+  v.v = MX::sym(name, n);
+  v.variability = Variable::CONTINUOUS;
+  v.causality = Variable::INPUT;
+  add_variable(name, v);
+  u_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_x(const std::string& name, casadi_int n) {
+  Variable v(name);
+  v.v = MX::sym(name, n);
+  v.variability = Variable::CONTINUOUS;
+  v.causality = Variable::LOCAL;
+  add_variable(name, v);
+  x_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_z(const std::string& name, casadi_int n) {
+  Variable v(name);
+  v.v = MX::sym(name, n);
+  v.variability = Variable::CONTINUOUS;
+  v.causality = Variable::LOCAL;
+  add_variable(name, v);
+  z_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_q(const std::string& name, casadi_int n) {
+  Variable v(name);
+  v.v = MX::sym(name, n);
+  v.variability = Variable::CONTINUOUS;
+  v.causality = Variable::LOCAL;
+  add_variable(name, v);
+  q_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_c(const std::string& name, const MX& new_cdef) {
+  Variable v(name);
+  v.v = MX::sym(name);
+  v.variability = Variable::CONSTANT;
+  v.beq = new_cdef;
+  add_variable(name, v);
+  c_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_d(const std::string& name, const MX& new_ddef) {
+  Variable v(name);
+  v.v = MX::sym(name);
+  v.variability = Variable::FIXED;
+  v.causality = Variable::CALCULATED_PARAMETER;
+  v.beq = new_ddef;
+  d_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_w(const std::string& name, const MX& new_wdef) {
+  Variable v(name);
+  v.v = MX::sym(name);
+  v.variability = Variable::CONTINUOUS;
+  v.beq = new_wdef;
+  w_.push_back(v.v);
+  return v.v;
+}
+
+MX DaeBuilderInternal::add_y(const std::string& name, const MX& new_ydef) {
+  Variable v(name);
+  v.v = MX::sym(name);
+  v.causality = Variable::OUTPUT;
+  v.beq = new_ydef;
+  y_.push_back(v.v);
+  return v.v;
 }
 
 } // namespace casadi
