@@ -5,4 +5,4 @@ casadi_plugin(Linsol mumps
   mumps_interface.hpp
   mumps_interface.cpp
   mumps_interface_meta.cpp)
-casadi_plugin_link_libraries(Linsol mumps ${MUMPS_LIBRARIES})
+casadi_plugin_link_libraries(Linsol mumps metis ${MUMPS_LIBRARIES})
