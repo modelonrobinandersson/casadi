@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 2.8.6)
+cmake_minimum_required(VERSION 3.15)
+# Minimum version is 3.15 due to how we are setting CMAKE_MSVC_RUNTIME_LIBRARY below
 project(casadi C CXX)
 
 set(CASADI_MAJOR_VERSION 3)
@@ -25,19 +26,8 @@ if(" ${CMAKE_C_FLAGS} " MATCHES " -m64 " AND CMAKE_HOST_WIN32)
 endif()
 
 if(MSVC)
-    # Force linking with MD run-time library
-	set(replace_from "/MT")
-	set(replace_to "/MD")
-	foreach(flag_var
-		CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-		CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO
-		CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-		CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
-		if(${${flag_var}} MATCHES "${replace_from}")
-			string(REPLACE "${replace_from}" "${replace_to}" tmp "${${flag_var}}")
-			set(${flag_var} ${tmp} CACHE STRING "compiler flags" FORCE)
-		endif()
-	endforeach(flag_var)
+    # Force linking with MT
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>") # force /MT (or /MTd if using the Debug configuration) for all targets defined after this point
 endif()
 ############################################################
 ####################### Policies ###########################
